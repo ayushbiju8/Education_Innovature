@@ -1,0 +1,6 @@
+Welcome to Course Contents - Part 1.
+This is a demo text file containing lecture notes for the course.
+Key takeaways:
+1. React hooks provide powerful state management.
+2. GSAP allows high performance DOM element transitions.
+3. Tailwind v4 speeds up styling and utility configuration.

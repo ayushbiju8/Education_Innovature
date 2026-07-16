@@ -1,0 +1,6 @@
+Course Contents - Part 2 notes.
+In this lesson, we study database integrations with Django:
+- PostgreSQL configurations in config/settings.py
+- Mapping relationships using ForeignKeys
+- Restricting edits to owners via custom DRF permission classes
+- Verifying code correctness with unittest test suites

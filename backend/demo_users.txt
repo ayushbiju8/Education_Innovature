@@ -1,0 +1,16 @@
+Admin Account Exists:
+Username: admin
+Password: @Bahubali2 (assuming default from postman if already existed)
+
+Creating Mentor Accounts...
+Mentor 1:
+Username: mentor_john
+Password: password123 (if newly created, else unknown)
+
+  -> Created Course: 'Course by John' with 1 Module and 1 Lesson.
+
+Mentor 2:
+Username: mentor_jane
+Password: password123 (if newly created, else unknown)
+
+  -> Created Course: 'Course by Jane' with 1 Module and 1 Lesson.
