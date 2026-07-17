@@ -19,7 +19,7 @@ class AttachmentSerializer(serializers.ModelSerializer):
         read_only_fields = ('lesson',)
         
     def validate_file(self, value):
-        allowed_extensions = ['.mp4', '.pdf', '.doc', '.docx', '.zip']
+        allowed_extensions = ['.mp4', '.pdf', '.doc', '.docx', '.zip', '.png', '.jpg', '.jpeg', '.txt']
         ext = os.path.splitext(value.name)[1].lower()
         if ext not in allowed_extensions:
             raise serializers.ValidationError(f"Unsupported file extension. Allowed extensions are: {', '.join(allowed_extensions)}")

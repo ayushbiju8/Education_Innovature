@@ -62,7 +62,8 @@ const CourseDetails = () => {
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  
+  const isAccessAllowed = isEnrolled || user?.role === 'mentor' || user?.role === 'admin';
+
   const detailsRef = useRef(null);
   const syllabusRef = useRef(null);
 
@@ -585,8 +586,7 @@ const CourseDetails = () => {
 
     return <PlayCircle className="h-4 w-4 shrink-0 text-slate-400" />;
   };
-
-  const isAccessAllowed = isEnrolled || user?.role === 'mentor' || user?.role === 'admin';
+  
 
   if (loading) {
     return (

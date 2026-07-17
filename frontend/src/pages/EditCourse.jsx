@@ -180,7 +180,7 @@ const EditCourse = () => {
       await fetchCourseData();
     } catch (err) {
       console.error(err);
-      setError('Failed to upload attachment.');
+      setError(err.response?.data?.file?.[0] || err.response?.data?.detail || 'Failed to upload attachment.');
     }
   };
 
