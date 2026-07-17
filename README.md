@@ -1,3 +1,8 @@
+Username: admin
+Password: SecureAdminPassword123!
+Email: admin@example.com
+
+
 Admin Account
 Username: admin
 Password: @Bahubali2

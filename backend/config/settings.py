@@ -128,7 +128,7 @@ DATABASES = {
 if os.getenv('DATABASE_URL'):
     DATABASES['default'] = dj_database_url.config(
         default=os.getenv('DATABASE_URL'),
-        conn_max_age=600,
+        conn_max_age=int(os.getenv('CONN_MAX_AGE', 0)),
         ssl_require=os.getenv('DATABASE_SSL_REQUIRE', 'False') == 'True'
     )
 
@@ -215,10 +215,18 @@ CORS_ALLOW_CREDENTIALS = True
 csrf_origins_env = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost:3000,http://localhost:5173')
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in csrf_origins_env.split(',') if o.strip()]
 
-# WhiteNoise Static Storage Setup (Django 5.x compatible)
+# AWS S3 Settings
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
+AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME')
+AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com' if AWS_STORAGE_BUCKET_NAME else None
+AWS_S3_FILE_OVERWRITE = False
+
+# Storage Setup (Django 5.x compatible)
 STORAGES = {
     "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage" if AWS_ACCESS_KEY_ID else "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",

@@ -12,6 +12,12 @@ import gsap from 'gsap';
 
 const CourseDetails = () => {
   const { id } = useParams();
+  const getMediaUrl = (path) => {
+    if (!path) return '';
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    return `${API_URL}${path}`;
+  };
+
   const { user } = useAuth();
   
   const [course, setCourse] = useState(null);
@@ -148,7 +154,7 @@ const CourseDetails = () => {
         (a) => a.file.toLowerCase().endsWith('.mp4') || a.file.toLowerCase().endsWith('.webm')
       );
       if (videoAttach) {
-        setActiveVideoUrl(`${API_URL}${videoAttach.file}`);
+        setActiveVideoUrl(getMediaUrl(videoAttach.file));
         setActiveVideoTitle(videoAttach.title);
       } else {
         setActiveVideoUrl('');
@@ -158,7 +164,7 @@ const CourseDetails = () => {
       selectedLesson.attachments?.forEach(async (attach) => {
         if (attach.file.toLowerCase().endsWith('.txt')) {
           try {
-            const res = await fetch(`${API_URL}${attach.file}`);
+            const res = await fetch(getMediaUrl(attach.file));
             const text = await res.text();
             setTextFileContents(prev => ({ ...prev, [attach.id]: text }));
           } catch (err) {
@@ -981,12 +987,12 @@ const CourseDetails = () => {
                       <button
                         key={video.id}
                         onClick={() => {
-                          setActiveVideoUrl(`${API_URL}${video.file}`);
+                          setActiveVideoUrl(getMediaUrl(video.file));
                           setActiveVideoTitle(video.title);
                           setIsPlaying(false);
                         }}
                         className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg border transition-all ${
-                          activeVideoUrl === `${API_URL}${video.file}`
+                          activeVideoUrl === getMediaUrl(video.file)
                             ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
                             : 'bg-white/5 text-slate-400 hover:text-white border-transparent'
                         }`}
@@ -1017,10 +1023,10 @@ const CourseDetails = () => {
                       <div 
                         key={img.id} 
                         className="group relative rounded-2xl overflow-hidden border border-white/5 bg-slate-950 flex flex-col cursor-zoom-in"
-                        onClick={() => setExpandedImage(`${API_URL}${img.file}`)}
+                        onClick={() => setExpandedImage(getMediaUrl(img.file))}
                       >
                         <img 
-                          src={`${API_URL}${img.file}`} 
+                          src={getMediaUrl(img.file)} 
                           alt={img.title} 
                           className="w-full aspect-video object-cover group-hover:scale-105 transition-transform duration-300"
                         />
@@ -1073,7 +1079,7 @@ const CourseDetails = () => {
                     {otherAttachments.map((attach) => (
                       <a
                         key={attach.id}
-                        href={`${API_URL}${attach.file}`}
+                        href={getMediaUrl(attach.file)}
                         download
                         target="_blank"
                         rel="noreferrer"
