@@ -198,6 +198,29 @@ const Navbar = () => {
             </>
           )}
 
+          {user && user.role === 'admin' && (
+            <>
+              <Link
+                to="/admin/mentor-applications"
+                className={`flex items-center gap-1.5 transition-colors ${
+                  isActive('/admin/mentor-applications') ? 'text-accent-blue' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Sparkles className="h-4 w-4" />
+                Mentor Requests
+              </Link>
+              <Link
+                to="/mentor/courses"
+                className={`flex items-center gap-1.5 transition-colors ${
+                  isActive('/mentor/courses') ? 'text-accent-violet' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <FileText className="h-4 w-4" />
+                All Courses
+              </Link>
+            </>
+          )}
+
           {user && user.role === 'student' && (
             <button
               onClick={() => setShowApplyModal(true)}

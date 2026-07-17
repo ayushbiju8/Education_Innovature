@@ -11,6 +11,7 @@ import MyCourses from './pages/MyCourses';
 import CreateCourse from './pages/CreateCourse';
 import EditCourse from './pages/EditCourse';
 import Dashboard from './pages/Dashboard';
+import AdminMentorApplications from './pages/AdminMentorApplications';
 
 function App() {
   return (
@@ -59,6 +60,14 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={['mentor', 'admin']}>
                     <EditCourse />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/mentor-applications"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminMentorApplications />
                   </ProtectedRoute>
                 }
               />

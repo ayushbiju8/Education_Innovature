@@ -18,11 +18,15 @@ const MyCourses = () => {
       try {
         setError('');
         const res = await client.get('/courses/');
-        // Filter courses created by this mentor
-        const myFiltered = res.data.filter(
-          (course) => Number(course.mentor) === Number(user?.id)
-        );
-        setCourses(myFiltered);
+        if (user?.role === 'admin') {
+          setCourses(res.data);
+        } else {
+          // Filter courses created by this mentor
+          const myFiltered = res.data.filter(
+            (course) => Number(course.mentor) === Number(user?.id)
+          );
+          setCourses(myFiltered);
+        }
       } catch (err) {
         console.error('Error fetching my courses:', err);
         setError('Failed to fetch courses. Please check connection.');
