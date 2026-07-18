@@ -18,7 +18,8 @@ def _get_authorized_room(user, course_id):
     is_authorized = False
     if user.is_superuser or getattr(user, 'role', '') == 'admin':
         is_authorized = True
-    elif getattr(user, 'role', '') == 'mentor' and course.mentor == user:
+    elif getattr(user, 'role', '') == 'mentor':
+        # Any mentor can access discussions (either course owner or any other mentor)
         is_authorized = True
     elif Enrollment.objects.filter(student=user, course=course).exists():
         is_authorized = True
