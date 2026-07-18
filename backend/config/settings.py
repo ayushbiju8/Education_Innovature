@@ -220,10 +220,46 @@ AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
 AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME')
-# AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com' if AWS_STORAGE_BUCKET_NAME else None
 AWS_S3_FILE_OVERWRITE = False
 AWS_QUERYSTRING_AUTH = True
 AWS_S3_SIGNATURE_VERSION = 's3v4'
+# Increase pre-signed URL expiry to 12 hours so media loads reliably
+AWS_QUERYSTRING_EXPIRE = 43200
+# Allow cross-origin reads of S3 objects (required for <video>, <img>, <audio> in browser)
+AWS_S3_OBJECT_PARAMETERS = {
+    'CacheControl': 'max-age=86400',
+}
+
+# Apply CORS rules to the S3 bucket automatically on startup
+def _configure_s3_cors():
+    if not AWS_ACCESS_KEY_ID or not AWS_STORAGE_BUCKET_NAME:
+        return
+    try:
+        import boto3
+        from botocore.exceptions import ClientError
+        s3 = boto3.client(
+            's3',
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+            region_name=AWS_S3_REGION_NAME,
+        )
+        cors_config = {
+            'CORSRules': [{
+                'AllowedHeaders': ['*'],
+                'AllowedMethods': ['GET', 'HEAD'],
+                'AllowedOrigins': ['*'],
+                'ExposeHeaders': ['Content-Length', 'Content-Type', 'ETag'],
+                'MaxAgeSeconds': 86400,
+            }]
+        }
+        s3.put_bucket_cors(
+            Bucket=AWS_STORAGE_BUCKET_NAME,
+            CORSConfiguration=cors_config
+        )
+    except Exception:
+        pass  # Don't crash on startup if CORS config fails
+
+_configure_s3_cors()
 
 # Storage Setup (Django 5.x compatible)
 STORAGES = {
@@ -242,7 +278,8 @@ SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'False') == 'True'
 CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', 'False') == 'True'
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
-X_FRAME_OPTIONS = 'DENY'
+# SAMEORIGIN allows PDF iframes embedded within the same site to render
+X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 # Production Logging Configuration
 LOGGING = {

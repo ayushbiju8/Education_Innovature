@@ -146,24 +146,28 @@ const CourseDetails = () => {
     fetchCourseDetails();
   }, [id, user]);
 
-  // Helpers for media type detection
-  const isVideoFile = (url) => {
-    const u = url.toLowerCase();
-    return u.endsWith('.mp4') || u.endsWith('.webm') || u.endsWith('.mov') ||
-           u.endsWith('.mkv') || u.endsWith('.avi') || u.endsWith('.ogv');
+  // Extract file extension cleanly — strips query strings from S3 pre-signed URLs
+  // e.g. "https://bucket.s3.amazonaws.com/file.mp4?X-Amz-..." → "mp4"
+  const getFileExt = (url) => {
+    try {
+      // Use URL parser to get just the pathname, dropping query string
+      const pathname = new URL(url).pathname;
+      const parts = pathname.split('.');
+      return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
+    } catch {
+      // Fallback for relative paths: strip query string manually
+      const pathOnly = url.split('?')[0].split('#')[0];
+      const parts = pathOnly.split('.');
+      return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
+    }
   };
-  const isAudioFile = (url) => {
-    const u = url.toLowerCase();
-    return u.endsWith('.mp3') || u.endsWith('.wav') || u.endsWith('.ogg') ||
-           u.endsWith('.m4a') || u.endsWith('.aac') || u.endsWith('.flac');
-  };
-  const isPdfFile = (url) => url.toLowerCase().endsWith('.pdf');
-  const isImageFile = (url) => {
-    const u = url.toLowerCase();
-    return u.endsWith('.png') || u.endsWith('.jpg') || u.endsWith('.jpeg') ||
-           u.endsWith('.gif') || u.endsWith('.webp') || u.endsWith('.svg');
-  };
-  const isTextFile = (url) => url.toLowerCase().endsWith('.txt');
+
+  // Helpers for media type detection — all use getFileExt to handle S3 signed URLs
+  const isVideoFile = (url) => ['mp4', 'webm', 'mov', 'mkv', 'avi', 'ogv'].includes(getFileExt(url));
+  const isAudioFile = (url) => ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'].includes(getFileExt(url));
+  const isPdfFile  = (url) => getFileExt(url) === 'pdf';
+  const isImageFile = (url) => ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(getFileExt(url));
+  const isTextFile  = (url) => getFileExt(url) === 'txt';
 
   // Detect YouTube / Vimeo to embed as iframe
   const getEmbedUrl = (url) => {
@@ -189,7 +193,7 @@ const CourseDetails = () => {
       }
 
       selectedLesson.attachments?.forEach(async (attach) => {
-        if (attach.file.toLowerCase().endsWith('.txt')) {
+        if (isTextFile(attach.file)) {
           try {
             const res = await fetch(getMediaUrl(attach.file));
             const text = await res.text();
