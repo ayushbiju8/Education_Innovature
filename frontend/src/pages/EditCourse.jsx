@@ -37,10 +37,15 @@ const EditCourse = () => {
   const [attachmentTitle, setAttachmentTitle] = useState('');
   const [attachmentFile, setAttachmentFile] = useState(null);
   const fileInputRef = useRef(null);
+  const lessonFileInputRef = useRef(null);
 
   // Lesson creation attachment states
   const [lessonAttachmentTitle, setLessonAttachmentTitle] = useState('');
   const [lessonAttachmentFile, setLessonAttachmentFile] = useState(null);
+
+  // Drag-and-drop states
+  const [isDraggingLesson, setIsDraggingLesson] = useState(false);
+  const [isDraggingModal, setIsDraggingModal] = useState(false);
 
   // Upload status tracking
   const [isUploading, setIsUploading] = useState(false);
@@ -507,37 +512,63 @@ const EditCourse = () => {
                             {/* Lesson optional attachment uploads inline */}
                             <div className="border-t border-white/5 pt-3 space-y-3">
                               <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest">Lesson Attachments (Optional)</p>
-                              
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                  <label className="block cursor-pointer">
-                                    <span className="block text-[8px] text-slate-500 mb-1.5 uppercase font-bold tracking-widest hover:text-white transition-colors">
-                                      Select File
-                                    </span>
-                                    <input
-                                      type="file"
-                                      onChange={(e) => handleFileChange(e.target.files[0], true)}
-                                      className="w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-accent-violet/20 file:text-accent-violet hover:file:bg-accent-violet/30 cursor-pointer transition-all"
-                                    />
-                                  </label>
-                                </div>
 
-                                {lessonAttachmentFile && (
-                                  <div>
-                                    <label className="block text-[8px] text-slate-500 mb-1.5 uppercase font-bold tracking-widest">
-                                      Attachment Title
-                                    </label>
-                                    <input
-                                      type="text"
-                                      required
-                                      placeholder="e.g. Lecture Slides PDF"
-                                      value={lessonAttachmentTitle}
-                                      onChange={(e) => setLessonAttachmentTitle(e.target.value)}
-                                      className="w-full bg-slate-950 border border-white/5 rounded-lg px-2.5 py-1 text-xs text-white"
-                                    />
-                                  </div>
+                              {/* Drag-and-drop zone for lesson attachment - uses label wrapping for reliable browser click */}
+                              <label
+                                htmlFor="lesson-file-input"
+                                onDragOver={(e) => { e.preventDefault(); setIsDraggingLesson(true); }}
+                                onDragLeave={() => setIsDraggingLesson(false)}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  setIsDraggingLesson(false);
+                                  const file = e.dataTransfer.files[0];
+                                  if (file) handleFileChange(file, true);
+                                }}
+                                className={`relative flex flex-col items-center justify-center gap-1.5 w-full rounded-xl border-2 border-dashed cursor-pointer transition-all duration-200 py-5 px-3 ${
+                                  isDraggingLesson
+                                    ? 'border-accent-violet bg-accent-violet/10 scale-[1.01]'
+                                    : lessonAttachmentFile
+                                    ? 'border-accent-violet/40 bg-accent-violet/5'
+                                    : 'border-white/10 bg-slate-950/40 hover:border-accent-violet/40 hover:bg-accent-violet/5'
+                                }`}
+                              >
+                                <input
+                                  id="lesson-file-input"
+                                  type="file"
+                                  ref={lessonFileInputRef}
+                                  onChange={(e) => handleFileChange(e.target.files[0], true)}
+                                  className="sr-only"
+                                />
+                                {lessonAttachmentFile ? (
+                                  <>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-accent-violet" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    <span className="text-[10px] font-bold text-accent-violet text-center truncate max-w-full px-2">{lessonAttachmentFile.name}</span>
+                                    <span className="text-[9px] text-slate-500">Click to change file</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-colors ${isDraggingLesson ? 'text-accent-violet' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                                    <span className={`text-[10px] font-bold transition-colors ${isDraggingLesson ? 'text-accent-violet' : 'text-slate-400'}`}>Drop file here or click to browse</span>
+                                    <span className="text-[9px] text-slate-600">Any file type accepted</span>
+                                  </>
                                 )}
-                              </div>
+                              </label>
+
+                              {lessonAttachmentFile && (
+                                <div>
+                                  <label className="block text-[8px] text-slate-500 mb-1.5 uppercase font-bold tracking-widest">
+                                    Attachment Title
+                                  </label>
+                                  <input
+                                    type="text"
+                                    required
+                                    placeholder="e.g. Lecture Slides PDF"
+                                    value={lessonAttachmentTitle}
+                                    onChange={(e) => setLessonAttachmentTitle(e.target.value)}
+                                    className="w-full bg-slate-950 border border-white/5 rounded-lg px-2.5 py-1 text-xs text-white"
+                                  />
+                                </div>
+                              )}
 
                               {previewUrl && lessonAttachmentFile && (
                                 <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-white/10 mt-2">
@@ -644,17 +675,49 @@ const EditCourse = () => {
             <h3 className="text-md font-bold text-white mb-4">Upload Lesson Attachment</h3>
             <form onSubmit={handleUploadAttachment} className="space-y-4">
               <div>
-                <label className="block cursor-pointer">
-                  <span className="block text-xs text-slate-400 mb-1.5 font-bold uppercase tracking-widest hover:text-white transition-colors">
-                    Choose File
-                  </span>
+                <label className="block text-xs text-slate-400 mb-2 font-bold uppercase tracking-widest">Choose File</label>
+                {/* Drag-and-drop zone for modal attachment - uses label wrapping for reliable browser click */}
+                <label
+                  htmlFor="modal-file-input"
+                  onDragOver={(e) => { e.preventDefault(); setIsDraggingModal(true); }}
+                  onDragLeave={() => setIsDraggingModal(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDraggingModal(false);
+                    const file = e.dataTransfer.files[0];
+                    if (file) handleFileChange(file, false);
+                  }}
+                  className={`relative flex flex-col items-center justify-center gap-2 w-full rounded-xl border-2 border-dashed cursor-pointer transition-all duration-200 py-8 px-4 ${
+                    isDraggingModal
+                      ? 'border-accent-violet bg-accent-violet/10 scale-[1.01]'
+                      : attachmentFile
+                      ? 'border-accent-violet/40 bg-accent-violet/5'
+                      : 'border-white/10 bg-slate-900/50 hover:border-accent-violet/40 hover:bg-accent-violet/5'
+                  }`}
+                >
                   <input
+                    id="modal-file-input"
                     type="file"
-                    required
                     ref={fileInputRef}
                     onChange={(e) => handleFileChange(e.target.files[0], false)}
-                    className="w-full text-xs text-slate-300 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-accent-violet/20 file:text-accent-violet hover:file:bg-accent-violet/30 cursor-pointer transition-all"
+                    className="sr-only"
                   />
+                  {attachmentFile ? (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-accent-violet" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <span className="text-xs font-bold text-accent-violet text-center truncate max-w-full px-2">{attachmentFile.name}</span>
+                      <span className="text-[10px] text-slate-500">Click to change file</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" className={`h-10 w-10 transition-colors ${isDraggingModal ? 'text-accent-violet' : 'text-slate-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                      <div className="text-center">
+                        <p className={`text-xs font-bold transition-colors ${isDraggingModal ? 'text-accent-violet' : 'text-slate-300'}`}>Drop your file here</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">or <span className="text-accent-violet underline">click to browse</span></p>
+                      </div>
+                      <p className="text-[9px] text-slate-600">Any file type accepted</p>
+                    </>
+                  )}
                 </label>
               </div>
 
