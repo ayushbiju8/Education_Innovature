@@ -146,13 +146,40 @@ const CourseDetails = () => {
     fetchCourseDetails();
   }, [id, user]);
 
+  // Helpers for media type detection
+  const isVideoFile = (url) => {
+    const u = url.toLowerCase();
+    return u.endsWith('.mp4') || u.endsWith('.webm') || u.endsWith('.mov') ||
+           u.endsWith('.mkv') || u.endsWith('.avi') || u.endsWith('.ogv');
+  };
+  const isAudioFile = (url) => {
+    const u = url.toLowerCase();
+    return u.endsWith('.mp3') || u.endsWith('.wav') || u.endsWith('.ogg') ||
+           u.endsWith('.m4a') || u.endsWith('.aac') || u.endsWith('.flac');
+  };
+  const isPdfFile = (url) => url.toLowerCase().endsWith('.pdf');
+  const isImageFile = (url) => {
+    const u = url.toLowerCase();
+    return u.endsWith('.png') || u.endsWith('.jpg') || u.endsWith('.jpeg') ||
+           u.endsWith('.gif') || u.endsWith('.webp') || u.endsWith('.svg');
+  };
+  const isTextFile = (url) => url.toLowerCase().endsWith('.txt');
+
+  // Detect YouTube / Vimeo to embed as iframe
+  const getEmbedUrl = (url) => {
+    if (!url) return null;
+    const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
+    if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
+    const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+    if (vimeoMatch) return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+    return null;
+  };
+
   // Load text file contents inline
   useEffect(() => {
     if (selectedLesson) {
-      // Find first video attachment if exist
-      const videoAttach = selectedLesson.attachments?.find(
-        (a) => a.file.toLowerCase().endsWith('.mp4') || a.file.toLowerCase().endsWith('.webm')
-      );
+      // Find first video attachment if exist (expanded format support)
+      const videoAttach = selectedLesson.attachments?.find((a) => isVideoFile(a.file));
       if (videoAttach) {
         setActiveVideoUrl(getMediaUrl(videoAttach.file));
         setActiveVideoTitle(videoAttach.title);
@@ -613,27 +640,16 @@ const CourseDetails = () => {
     );
   }
 
-  // Group files by type
+  // Group files by type (comprehensive)
   const attachments = selectedLesson?.attachments || [];
-  const imageAttachments = attachments.filter(a => 
-    a.file.toLowerCase().endsWith('.png') || 
-    a.file.toLowerCase().endsWith('.jpg') || 
-    a.file.toLowerCase().endsWith('.jpeg') || 
-    a.file.toLowerCase().endsWith('.gif')
-  );
-  const textAttachments = attachments.filter(a => a.file.toLowerCase().endsWith('.txt'));
-  const videoAttachments = attachments.filter(a => 
-    a.file.toLowerCase().endsWith('.mp4') || 
-    a.file.toLowerCase().endsWith('.webm')
-  );
-  const otherAttachments = attachments.filter(a => 
-    !a.file.toLowerCase().endsWith('.png') && 
-    !a.file.toLowerCase().endsWith('.jpg') && 
-    !a.file.toLowerCase().endsWith('.jpeg') && 
-    !a.file.toLowerCase().endsWith('.gif') && 
-    !a.file.toLowerCase().endsWith('.txt') && 
-    !a.file.toLowerCase().endsWith('.mp4') && 
-    !a.file.toLowerCase().endsWith('.webm')
+  const imageAttachments = attachments.filter(a => isImageFile(a.file));
+  const textAttachments = attachments.filter(a => isTextFile(a.file));
+  const videoAttachments = attachments.filter(a => isVideoFile(a.file));
+  const audioAttachments = attachments.filter(a => isAudioFile(a.file));
+  const pdfAttachments = attachments.filter(a => isPdfFile(a.file));
+  const otherAttachments = attachments.filter(a =>
+    !isImageFile(a.file) && !isTextFile(a.file) &&
+    !isVideoFile(a.file) && !isAudioFile(a.file) && !isPdfFile(a.file)
   );
 
   return (
@@ -970,12 +986,40 @@ const CourseDetails = () => {
                   </div>
                 </div>
               ) : selectedLesson.video_url ? (
-                <div className="aspect-video w-full bg-slate-900 border border-white/5 rounded-2xl flex flex-col items-center justify-center text-slate-500 mb-6 overflow-hidden relative group">
-                  <PlayCircle className="h-12 w-12 text-accent-blue/80 group-hover:scale-110 transition-transform cursor-pointer" />
-                  <span className="absolute bottom-4 left-4 text-xs font-medium text-slate-400">
-                    External link: {selectedLesson.video_url}
-                  </span>
-                </div>
+                (() => {
+                  const embedUrl = getEmbedUrl(selectedLesson.video_url);
+                  return embedUrl ? (
+                    <div className="space-y-2 mb-2">
+                      <p className="text-xs text-slate-400 font-semibold flex items-center gap-1.5">
+                        <PlayCircle className="h-3.5 w-3.5 text-accent-blue" />
+                        Embedded Video
+                      </p>
+                      <div className="relative rounded-2xl overflow-hidden border border-white/5 bg-black shadow-2xl aspect-video">
+                        <iframe
+                          src={embedUrl}
+                          title="Lesson Video"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          className="w-full h-full"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 mb-2">
+                      <p className="text-xs text-slate-400 font-semibold flex items-center gap-1.5">
+                        <PlayCircle className="h-3.5 w-3.5 text-accent-blue" />
+                        Lesson Video
+                      </p>
+                      <div className="relative rounded-2xl overflow-hidden border border-white/5 bg-black shadow-2xl">
+                        <video
+                          src={selectedLesson.video_url}
+                          controls
+                          className="w-full aspect-video object-contain"
+                        />
+                      </div>
+                    </div>
+                  );
+                })()
               ) : null}
 
               {/* Multiple Videos Playlist Switcher */}
@@ -1063,6 +1107,73 @@ const CourseDetails = () => {
                             <span>Reading file content...</span>
                           </div>
                         )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* AUDIO PLAYER */}
+              {audioAttachments.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <Volume2 className="h-4 w-4" /> Audio Lessons
+                  </p>
+                  <div className="space-y-3">
+                    {audioAttachments.map((audio) => (
+                      <div key={audio.id} className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Volume2 className="h-4 w-4 text-accent-violet shrink-0" />
+                          <span className="text-xs font-bold text-slate-200 truncate">{audio.title}</span>
+                          <span className="ml-auto text-[10px] text-slate-500 uppercase font-mono">
+                            {audio.file.split('.').pop()}
+                          </span>
+                        </div>
+                        <audio
+                          controls
+                          src={getMediaUrl(audio.file)}
+                          className="w-full h-10 accent-accent-violet"
+                          style={{
+                            filter: 'invert(0.1) hue-rotate(220deg)',
+                          }}
+                        >
+                          Your browser does not support the audio element.
+                        </audio>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* PDF INLINE VIEWER */}
+              {pdfAttachments.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <FileText className="h-4 w-4 text-red-400" /> PDF Documents
+                  </p>
+                  <div className="space-y-4">
+                    {pdfAttachments.map((pdf) => (
+                      <div key={pdf.id} className="rounded-2xl overflow-hidden border border-white/10 bg-slate-950/60">
+                        <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5 bg-slate-900/50">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">PDF</span>
+                            <span className="text-xs font-semibold text-slate-200 truncate">{pdf.title}</span>
+                          </div>
+                          <a
+                            href={getMediaUrl(pdf.file)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] font-bold text-accent-blue hover:underline flex items-center gap-1"
+                          >
+                            <Download className="h-3 w-3" /> Open
+                          </a>
+                        </div>
+                        <iframe
+                          src={`${getMediaUrl(pdf.file)}#toolbar=1&navpanes=0&scrollbar=1`}
+                          title={pdf.title}
+                          className="w-full"
+                          style={{ height: '520px', border: 'none' }}
+                        />
                       </div>
                     ))}
                   </div>
