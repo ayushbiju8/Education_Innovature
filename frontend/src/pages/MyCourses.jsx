@@ -54,7 +54,7 @@ const MyCourses = () => {
   if (loading) {
     return (
       <div className="flex h-[calc(100vh-73px)] items-center justify-center bg-darkBg text-white">
-        <Loader className="h-10 w-10 animate-spin text-accent-violet" />
+        <div className="premium-spinner"></div>
       </div>
     );
   }

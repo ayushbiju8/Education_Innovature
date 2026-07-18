@@ -136,10 +136,10 @@ const Login = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-accent-blue to-accent-indigo hover:from-blue-600 hover:to-indigo-600 text-white font-semibold py-3.5 px-4 rounded-2xl shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full bg-gradient-to-r from-accent-blue to-accent-indigo hover:from-blue-600 hover:to-indigo-600 active:scale-97 text-white font-semibold py-3.5 px-4 rounded-2xl shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {loading ? (
-              <Loader className="h-4 w-4 animate-spin" />
+              <div className="premium-spinner-sm"></div>
             ) : 'Sign In'}
           </button>
 

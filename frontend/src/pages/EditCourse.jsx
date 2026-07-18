@@ -277,7 +277,7 @@ const EditCourse = () => {
   if (loading) {
     return (
       <div className="flex h-[calc(100vh-73px)] items-center justify-center bg-darkBg text-white">
-        <Loader className="h-10 w-10 animate-spin text-accent-violet" />
+        <div className="premium-spinner"></div>
       </div>
     );
   }
@@ -390,9 +390,9 @@ const EditCourse = () => {
             <button
               type="submit"
               disabled={saveLoading}
-              className="w-full flex items-center justify-center gap-1.5 bg-gradient-to-r from-accent-violet to-accent-indigo hover:from-violet-600 hover:to-indigo-600 text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow-md transition-all"
+              className="w-full flex items-center justify-center gap-1.5 bg-gradient-to-r from-accent-violet to-accent-indigo hover:from-violet-600 hover:to-indigo-600 hover:shadow-lg hover:shadow-accent-violet/20 active:scale-97 text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow-md transition-all duration-200"
             >
-              {saveLoading ? <Loader className="h-3 w-3 animate-spin" /> : <><Save className="h-3.5 w-3.5" /> Save Changes</>}
+              {saveLoading ? <div className="premium-spinner-sm"></div> : <><Save className="h-3.5 w-3.5" /> Save Changes</>}
             </button>
           </form>
         </div>
@@ -526,10 +526,10 @@ const EditCourse = () => {
                                 }}
                                 className={`relative flex flex-col items-center justify-center gap-1.5 w-full rounded-xl border-2 border-dashed cursor-pointer transition-all duration-200 py-5 px-3 ${
                                   isDraggingLesson
-                                    ? 'border-accent-violet bg-accent-violet/10 scale-[1.01]'
+                                    ? 'border-accent-violet bg-accent-violet/10 drag-zone-active'
                                     : lessonAttachmentFile
                                     ? 'border-accent-violet/40 bg-accent-violet/5'
-                                    : 'border-white/10 bg-slate-950/40 hover:border-accent-violet/40 hover:bg-accent-violet/5'
+                                    : 'border-white/10 bg-slate-950/40 hover:border-accent-violet/40 hover:bg-accent-violet/5 hover:scale-[1.005]'
                                 }`}
                               >
                                 <input
@@ -689,10 +689,10 @@ const EditCourse = () => {
                   }}
                   className={`relative flex flex-col items-center justify-center gap-2 w-full rounded-xl border-2 border-dashed cursor-pointer transition-all duration-200 py-8 px-4 ${
                     isDraggingModal
-                      ? 'border-accent-violet bg-accent-violet/10 scale-[1.01]'
+                      ? 'border-accent-violet bg-accent-violet/10 drag-zone-active'
                       : attachmentFile
                       ? 'border-accent-violet/40 bg-accent-violet/5'
-                      : 'border-white/10 bg-slate-900/50 hover:border-accent-violet/40 hover:bg-accent-violet/5'
+                      : 'border-white/10 bg-slate-900/50 hover:border-accent-violet/40 hover:bg-accent-violet/5 hover:scale-[1.005]'
                   }`}
                 >
                   <input

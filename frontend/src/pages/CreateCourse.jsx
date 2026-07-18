@@ -95,7 +95,7 @@ const CreateCourse = () => {
   if (loading) {
     return (
       <div className="flex h-[calc(100vh-73px)] items-center justify-center bg-darkBg text-white">
-        <Loader className="h-10 w-10 animate-spin text-accent-blue" />
+        <div className="premium-spinner"></div>
       </div>
     );
   }
@@ -208,10 +208,10 @@ const CreateCourse = () => {
           <button
             type="submit"
             disabled={submitLoading}
-            className="flex items-center gap-1.5 bg-gradient-to-r from-accent-emerald to-accent-blue hover:from-emerald-600 hover:to-blue-600 text-white font-semibold text-sm px-6 py-3 rounded-2xl shadow-lg transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 bg-gradient-to-r from-accent-emerald to-accent-blue hover:from-emerald-600 hover:to-blue-600 active:scale-97 text-white font-semibold text-sm px-6 py-3 rounded-2xl shadow-lg hover:shadow-accent-emerald/20 transition-all duration-200 disabled:opacity-50"
           >
             {submitLoading ? (
-              <Loader className="h-4 w-4 animate-spin" />
+              <div className="premium-spinner-sm"></div>
             ) : (
               <>
                 <Save className="h-4 w-4" /> Save & Build Syllabus

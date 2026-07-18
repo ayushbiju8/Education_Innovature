@@ -643,7 +643,7 @@ const CourseDetails = () => {
   if (loading) {
     return (
       <div className="flex h-[calc(100vh-73px)] items-center justify-center bg-darkBg text-white">
-        <Loader className="h-10 w-10 animate-spin text-accent-blue" />
+        <div className="premium-spinner"></div>
       </div>
     );
   }
@@ -759,10 +759,10 @@ const CourseDetails = () => {
                 <button
                   onClick={handleEnroll}
                   disabled={enrollLoading}
-                  className="w-full bg-gradient-to-r from-accent-blue to-accent-indigo hover:from-blue-600 hover:to-indigo-600 text-white font-semibold py-3 px-4 rounded-xl shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                  className="w-full bg-gradient-to-r from-accent-blue to-accent-indigo hover:from-blue-600 hover:to-indigo-600 active:scale-97 text-white font-semibold py-3 px-4 rounded-xl shadow-lg hover:shadow-accent-blue/20 transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
                 >
                   {enrollLoading ? (
-                    <Loader className="h-4 w-4 animate-spin" />
+                    <div className="premium-spinner-sm"></div>
                   ) : (
                     course.price > 0 ? `Buy Course ($${course.price})` : 'Enroll for Free'
                   )}
@@ -1122,7 +1122,7 @@ const CourseDetails = () => {
                           </pre>
                         ) : (
                           <div className="flex items-center gap-2 text-slate-500 py-2">
-                            <Loader className="h-3 w-3 animate-spin" />
+                            <div className="premium-spinner-sm"></div>
                             <span>Reading file content...</span>
                           </div>
                         )}
@@ -1253,8 +1253,8 @@ const CourseDetails = () => {
           {/* Discussion List */}
           <div className="flex-1 overflow-y-auto max-h-[500px] space-y-6 pr-2 py-2 select-text">
             {discussionLoading ? (
-              <div className="flex items-center justify-center py-20 text-slate-500 gap-2">
-                <Loader className="h-5 w-5 animate-spin text-accent-violet" />
+              <div className="flex flex-col items-center justify-center py-20 text-slate-500 gap-3">
+                <div className="premium-spinner"></div>
                 <span>Loading discussion history...</span>
               </div>
             ) : discussionQuestions.length === 0 ? (
