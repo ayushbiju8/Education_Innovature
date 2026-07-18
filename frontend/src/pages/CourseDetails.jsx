@@ -489,117 +489,132 @@ const CourseDetails = () => {
     }
   };
 
-  const fetchChatHistory = async () => {
-    setDiscussionLoading(true);
+  // Polling ref and last-seen timestamp for incremental updates
+  const pollIntervalRef = useRef(null);
+  const lastSeenRef = useRef(null);
+  const [chatConnected, setChatConnected] = useState(false);
+
+  const fetchChatHistory = async (incremental = false) => {
+    if (!incremental) setDiscussionLoading(true);
     try {
-      const res = await client.get(`/courses/${id}/chat-history/`);
-      setDiscussionQuestions(res.data);
-      setTimeout(() => discussionEndRef.current?.scrollIntoView({ behavior: 'auto' }), 200);
+      const params = incremental && lastSeenRef.current
+        ? `?since=${encodeURIComponent(lastSeenRef.current)}`
+        : '';
+      const res = await client.get(`/courses/${id}/chat-history/${params}`);
+      const newItems = res.data;
+
+      if (!incremental) {
+        // Full load: replace all
+        setDiscussionQuestions(newItems);
+        if (newItems.length > 0) {
+          // Track latest timestamp to use for incremental polling
+          const latest = newItems.reduce((a, b) => {
+            const aTime = a.answers?.length ? a.answers[a.answers.length - 1].created_at : a.created_at;
+            const bTime = b.answers?.length ? b.answers[b.answers.length - 1].created_at : b.created_at;
+            return aTime > bTime ? a : b;
+          });
+          lastSeenRef.current = latest.answers?.length
+            ? latest.answers[latest.answers.length - 1].created_at
+            : latest.created_at;
+        }
+        setTimeout(() => discussionEndRef.current?.scrollIntoView({ behavior: 'auto' }), 200);
+      } else if (newItems.length > 0) {
+        // Incremental: merge new questions and new answers into existing state
+        setDiscussionQuestions(prev => {
+          const merged = [...prev];
+          newItems.forEach(incoming => {
+            const existing = merged.find(q => q.id === incoming.id);
+            if (!existing) {
+              merged.push(incoming);
+            } else {
+              // Merge new answers into the existing question
+              const existingIds = new Set(existing.answers.map(a => a.id));
+              const newAnswers = incoming.answers.filter(a => !existingIds.has(a.id));
+              if (newAnswers.length > 0) {
+                existing.answers = [...existing.answers, ...newAnswers];
+              }
+            }
+          });
+          return [...merged];
+        });
+        // Update lastSeen to the most recent incoming timestamp
+        const allTimes = newItems.flatMap(q => [
+          q.created_at,
+          ...q.answers.map(a => a.created_at)
+        ]);
+        if (allTimes.length) {
+          lastSeenRef.current = allTimes.sort().reverse()[0];
+        }
+        setTimeout(() => discussionEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      }
+
+      setChatConnected(true);
     } catch (err) {
-      console.error("Error fetching chat history:", err);
+      console.error('Error fetching chat history:', err);
+      setChatConnected(false);
     } finally {
-      setDiscussionLoading(false);
+      if (!incremental) setDiscussionLoading(false);
     }
   };
 
-  const handleSendQuestion = (e) => {
+  const handleSendQuestion = async (e) => {
     e.preventDefault();
-    if (!newQuestionText.trim() || !socketRef.current) return;
-    
-    const payload = {
-      type: 'question',
-      content: newQuestionText.trim()
-    };
-    socketRef.current.send(JSON.stringify(payload));
+    const content = newQuestionText.trim();
+    if (!content) return;
     setNewQuestionText('');
+    try {
+      const res = await client.post(`/courses/${id}/chat/question/`, { content });
+      const created = res.data;
+      setDiscussionQuestions(prev => {
+        if (prev.some(q => q.id === created.id)) return prev;
+        return [...prev, { ...created, answers: [] }];
+      });
+      // Move lastSeen forward
+      lastSeenRef.current = created.created_at;
+      setTimeout(() => discussionEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    } catch (err) {
+      console.error('Error posting question:', err);
+      setError('Failed to send message. Please try again.');
+    }
   };
 
-  const handleSendReply = (e, questionId) => {
+  const handleSendReply = async (e, questionId) => {
     e.preventDefault();
-    const replyText = replyTexts[questionId];
-    if (!replyText || !replyText.trim() || !socketRef.current) return;
-
-    const payload = {
-      type: 'answer',
-      question_id: questionId,
-      content: replyText.trim()
-    };
-    socketRef.current.send(JSON.stringify(payload));
-    
-    setReplyTexts(prev => ({
-      ...prev,
-      [questionId]: ''
-    }));
+    const replyText = replyTexts[questionId]?.trim();
+    if (!replyText) return;
+    setReplyTexts(prev => ({ ...prev, [questionId]: '' }));
+    try {
+      const res = await client.post(`/courses/${id}/chat/question/${questionId}/answer/`, { content: replyText });
+      const answer = res.data;
+      setDiscussionQuestions(prev => prev.map(q => {
+        if (q.id !== questionId) return q;
+        if (q.answers.some(a => a.id === answer.id)) return q;
+        return { ...q, answers: [...q.answers, answer] };
+      }));
+      lastSeenRef.current = answer.created_at;
+      setTimeout(() => discussionEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    } catch (err) {
+      console.error('Error posting reply:', err);
+      setError('Failed to send reply. Please try again.');
+    }
   };
 
+  // Start/stop polling when discussion tab is active
   useEffect(() => {
     if (activeTab === 'discussion' && isAccessAllowed) {
-      fetchChatHistory();
-
-      const token = localStorage.getItem('token') || '';
-      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      
-      const backendHost = API_URL ? API_URL.replace(/^https?:\/\//, '') : 'localhost:8000';
-      const wsUrl = `${protocol}://${backendHost}/ws/chat/course/${id}/?token=${token}`;
-
-      const ws = new WebSocket(wsUrl);
-      socketRef.current = ws;
-
-      ws.onopen = () => {
-        console.log("WebSocket connected to discussion room.");
-      };
-
-      ws.onmessage = (event) => {
-        const payload = JSON.parse(event.data);
-        if (payload.type === 'question') {
-          setDiscussionQuestions(prev => {
-            if (prev.some(q => q.id === payload.id)) return prev;
-            return [...prev, {
-              id: payload.id,
-              sender: payload.sender,
-              title: payload.content.substring(0, 50),
-              content: payload.content,
-              answers: [],
-              created_at: payload.timestamp
-            }];
-          });
-          setTimeout(() => discussionEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-        } else if (payload.type === 'answer') {
-          setDiscussionQuestions(prev => {
-            return prev.map(q => {
-              if (q.id === payload.question_id) {
-                if (q.answers.some(a => a.id === payload.id)) return q;
-                return {
-                  ...q,
-                  answers: [...q.answers, {
-                    id: payload.id,
-                    sender: payload.sender,
-                    content: payload.content,
-                    created_at: payload.timestamp
-                  }]
-                };
-              }
-              return q;
-            });
-          });
-          setTimeout(() => discussionEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-        }
-      };
-
-      ws.onerror = (err) => {
-        console.error("WebSocket discussion room error:", err);
-      };
-
-      ws.onclose = () => {
-        console.log("WebSocket connection closed.");
-      };
-
-      return () => {
-        if (ws) {
-          ws.close();
-        }
-      };
+      lastSeenRef.current = null;
+      fetchChatHistory(false); // full initial load
+      // Poll every 3 seconds for new messages
+      pollIntervalRef.current = setInterval(() => {
+        fetchChatHistory(true); // incremental
+      }, 3000);
     }
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
   }, [activeTab, id, isAccessAllowed]);
 
   // Determine lesson icon based on its contents
@@ -1220,8 +1235,18 @@ const CourseDetails = () => {
         <div className="glass rounded-3xl p-6 border border-white/5 shadow-xl space-y-6 relative overflow-hidden flex flex-col min-h-[500px]">
           <div className="flex justify-between items-center pb-4 border-b border-white/5">
             <div>
-              <h3 className="text-lg font-bold text-white">Live Discussion Room</h3>
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                Live Discussion Room
+              </h3>
               <p className="text-xs text-slate-400">Ask questions and collaborate in real-time with classmates and your mentor.</p>
+            </div>
+            <div className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-lg border ${
+              chatConnected
+                ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
+                : 'text-slate-500 bg-white/5 border-white/5'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${chatConnected ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
+              {chatConnected ? 'Live' : 'Connecting...'}
             </div>
           </div>
 
