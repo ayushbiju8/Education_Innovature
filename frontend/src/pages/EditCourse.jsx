@@ -52,6 +52,172 @@ const EditCourse = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [previewUrl, setPreviewUrl] = useState('');
 
+  // Quiz management states
+  const [selectedLessonForQuiz, setSelectedLessonForQuiz] = useState(null);
+  const [quizTitle, setQuizTitle] = useState('Lesson Quiz');
+  const [quizDescription, setQuizDescription] = useState('Test your understanding of the lesson materials.');
+  const [quizPassingScore, setQuizPassingScore] = useState(60);
+  const [quizQuestions, setQuizQuestions] = useState([]);
+  const [quizSaveLoading, setQuizSaveLoading] = useState(false);
+
+  // Open the Quiz manager, fetching current quiz details
+  const handleOpenQuizManager = async (lesson) => {
+    setSelectedLessonForQuiz(lesson);
+    setError('');
+    setSuccess('');
+    
+    // Set default initial state
+    setQuizTitle('Lesson Quiz');
+    setQuizDescription('Test your understanding of the lesson materials.');
+    setQuizPassingScore(60);
+    setQuizQuestions([]);
+
+    try {
+      const res = await client.get(`/lessons/${lesson.id}/quiz/`);
+      const quiz = res.data;
+      setQuizTitle(quiz.title || 'Lesson Quiz');
+      setQuizDescription(quiz.description || '');
+      setQuizPassingScore(quiz.passing_score || 60);
+      setQuizQuestions(quiz.questions || []);
+    } catch (err) {
+      // 404 is expected if quiz doesn't exist yet, we just start with an empty question list
+      if (err.response?.status !== 404) {
+        console.error("Error fetching quiz:", err);
+        setError("Failed to load existing quiz details.");
+      }
+    }
+  };
+
+  // Add a new empty question to the quiz
+  const handleAddQuizQuestion = () => {
+    setQuizQuestions(prev => [
+      ...prev,
+      {
+        text: '',
+        choices: [
+          { text: 'Option A', is_correct: true },
+          { text: 'Option B', is_correct: false }
+        ]
+      }
+    ]);
+  };
+
+  // Remove a question
+  const handleRemoveQuizQuestion = (qIndex) => {
+    setQuizQuestions(prev => prev.filter((_, idx) => idx !== qIndex));
+  };
+
+  // Update question text
+  const handleQuizQuestionTextChange = (qIndex, value) => {
+    setQuizQuestions(prev => prev.map((q, idx) => 
+      idx === qIndex ? { ...q, text: value } : q
+    ));
+  };
+
+  // Update choice text
+  const handleQuizChoiceTextChange = (qIndex, cIndex, value) => {
+    setQuizQuestions(prev => prev.map((q, idx) => {
+      if (idx !== qIndex) return q;
+      return {
+        ...q,
+        choices: q.choices.map((c, cIdx) => 
+          cIdx === cIndex ? { ...c, text: value } : c
+        )
+      };
+    }));
+  };
+
+  // Set correct choice (only one choice can be correct per question)
+  const handleSetCorrectChoice = (qIndex, cIndex) => {
+    setQuizQuestions(prev => prev.map((q, idx) => {
+      if (idx !== qIndex) return q;
+      return {
+        ...q,
+        choices: q.choices.map((c, cIdx) => ({
+          ...c,
+          is_correct: cIdx === cIndex
+        }))
+      };
+    }));
+  };
+
+  // Add a new choice to a question
+  const handleAddQuizChoice = (qIndex) => {
+    setQuizQuestions(prev => prev.map((q, idx) => {
+      if (idx !== qIndex) return q;
+      return {
+        ...q,
+        choices: [...q.choices, { text: `Option ${String.fromCharCode(65 + q.choices.length)}`, is_correct: false }]
+      };
+    }));
+  };
+
+  // Remove a choice
+  const handleRemoveQuizChoice = (qIndex, cIndex) => {
+    setQuizQuestions(prev => prev.map((q, idx) => {
+      if (idx !== qIndex) return q;
+      const isRemovingCorrect = q.choices[cIndex]?.is_correct;
+      const newChoices = q.choices.filter((_, cIdx) => cIdx !== cIndex);
+      // Ensure at least one choice is marked correct if we removed the correct one
+      if (isRemovingCorrect && newChoices.length > 0) {
+        newChoices[0].is_correct = true;
+      }
+      return {
+        ...q,
+        choices: newChoices
+      };
+    }));
+  };
+
+  // Submit quiz to backend
+  const handleSaveQuizSubmit = async (e) => {
+    e.preventDefault();
+    if (!quizTitle.strip ? !quizTitle.trim() : !quizTitle) return;
+    
+    // Validate that every question has at least one correct choice
+    for (let i = 0; i < quizQuestions.length; i++) {
+      const q = quizQuestions[i];
+      if (!q.text.trim()) {
+        setError(`Question ${i + 1} text cannot be empty.`);
+        return;
+      }
+      if (q.choices.length < 2) {
+        setError(`Question ${i + 1} must have at least 2 options.`);
+        return;
+      }
+      const hasCorrect = q.choices.some(c => c.is_correct);
+      if (!hasCorrect) {
+        setError(`Question ${i + 1} must have a selected correct option.`);
+        return;
+      }
+    }
+
+    setQuizSaveLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await client.post(`/lessons/${selectedLessonForQuiz.id}/quiz/manage/`, {
+        title: quizTitle,
+        description: quizDescription,
+        passing_score: Number(quizPassingScore) || 60,
+        questions: quizQuestions
+      });
+
+      setSuccess('Quiz saved successfully!');
+      setTimeout(async () => {
+        setSuccess('');
+        setSelectedLessonForQuiz(null);
+        await fetchCourseData();
+      }, 1500);
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.detail || 'Failed to save quiz.');
+    } finally {
+      setQuizSaveLoading(false);
+    }
+  };
+
   // Handle local file selection and generates preview
   const handleFileChange = (file, isForLessonCreation = false) => {
     if (!file) {
@@ -653,6 +819,26 @@ const EditCourse = () => {
                                       ))}
                                     </div>
                                   )}
+
+                                  {/* Quiz details & manage control */}
+                                  <div className="border-t border-white/5 pt-2 space-y-1.5">
+                                    <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold">
+                                      <span>QUIZ KNOWLEDGE CHECK</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenQuizManager(lesson)}
+                                        className="text-accent-blue hover:underline flex items-center gap-0.5"
+                                      >
+                                        <Plus className="h-3 w-3" /> {lesson.quiz ? 'Edit quiz' : 'Add quiz'}
+                                      </button>
+                                    </div>
+                                    {lesson.quiz && (
+                                      <div className="flex items-center justify-between text-[10px] bg-slate-950/40 p-2 rounded-xl border border-white/5">
+                                        <span className="text-slate-300 font-bold truncate">{lesson.quiz.title}</span>
+                                        <span className="text-slate-500 font-mono shrink-0">{lesson.quiz.question_count} Qs</span>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             ))}
@@ -778,6 +964,179 @@ const EditCourse = () => {
                   className="bg-accent-violet text-white text-xs font-bold px-4 py-2 rounded-xl hover:scale-102 active:scale-98 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isUploading ? 'Uploading...' : 'Upload File'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Quiz management modal dialogue */}
+      {selectedLessonForQuiz && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-2xl glass rounded-2xl p-6 border border-white/10 my-8 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center pb-3 border-b border-white/5 mb-4 shrink-0">
+              <h3 className="text-md font-bold text-white">Manage Quiz for: {selectedLessonForQuiz.title}</h3>
+              <button
+                onClick={() => setSelectedLessonForQuiz(null)}
+                className="text-slate-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveQuizSubmit} className="space-y-4 overflow-y-auto flex-1 pr-1.5 scrollbar-thin">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5 font-bold uppercase tracking-widest">Quiz Title</label>
+                  <input
+                    type="text"
+                    required
+                    value={quizTitle}
+                    onChange={(e) => setQuizTitle(e.target.value)}
+                    className="w-full bg-slate-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5 font-bold uppercase tracking-widest">Passing Score (%)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    required
+                    value={quizPassingScore}
+                    onChange={(e) => setQuizPassingScore(e.target.value)}
+                    className="w-full bg-slate-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5 font-bold uppercase tracking-widest">Description</label>
+                <textarea
+                  rows={2}
+                  value={quizDescription}
+                  onChange={(e) => setQuizDescription(e.target.value)}
+                  className="w-full bg-slate-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white resize-none"
+                />
+              </div>
+
+              <div className="border-t border-white/5 pt-4 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Questions ({quizQuestions.length})</h4>
+                  <button
+                    type="button"
+                    onClick={handleAddQuizQuestion}
+                    className="bg-accent-violet/10 border border-accent-violet/20 text-accent-violet hover:bg-accent-violet hover:text-white px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add Question
+                  </button>
+                </div>
+
+                {quizQuestions.length === 0 ? (
+                  <p className="text-xs text-slate-500 italic text-center py-4">No questions created yet. Click "Add Question" above to begin.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {quizQuestions.map((q, qIdx) => (
+                      <div key={qIdx} className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl space-y-3 relative group">
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="text-xs font-bold text-slate-400">Q{qIdx + 1}.</span>
+                          <input
+                            type="text"
+                            required
+                            placeholder="Enter question text..."
+                            value={q.text}
+                            onChange={(e) => handleQuizQuestionTextChange(qIdx, e.target.value)}
+                            className="flex-1 bg-slate-950 border border-white/5 rounded-xl px-3 py-1.5 text-xs text-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveQuizQuestion(qIdx)}
+                            className="text-red-400 hover:text-red-300 p-1 hover:bg-red-500/10 rounded-lg transition-colors"
+                            title="Remove Question"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        {/* Options */}
+                        <div className="pl-6 space-y-2">
+                          <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                            <span>Choices / Options</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAddQuizChoice(qIdx)}
+                              className="text-accent-blue hover:underline"
+                            >
+                              + Add Option
+                            </button>
+                          </div>
+
+                          <div className="space-y-2">
+                            {q.choices.map((c, cIdx) => (
+                              <div key={cIdx} className="flex items-center gap-3">
+                                {/* Correct check */}
+                                <input
+                                  type="radio"
+                                  name={`correct-option-${qIdx}`}
+                                  checked={c.is_correct}
+                                  onChange={() => handleSetCorrectChoice(qIdx, cIdx)}
+                                  className="h-4 w-4 rounded-full border-white/10 text-accent-violet focus:ring-accent-violet bg-slate-950"
+                                />
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder="Option text..."
+                                  value={c.text}
+                                  onChange={(e) => handleQuizChoiceTextChange(qIdx, cIdx, e.target.value)}
+                                  className="flex-1 bg-slate-950 border border-white/5 rounded-xl px-3 py-1 text-xs text-white"
+                                />
+                                {q.choices.length > 2 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveQuizChoice(qIdx, cIdx)}
+                                    className="text-slate-500 hover:text-red-400 transition-colors"
+                                    title="Remove Option"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl text-xs font-semibold">
+                  {error}
+                </div>
+              )}
+
+              {success && (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3 rounded-xl text-xs font-semibold">
+                  {success}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-white/5 shrink-0">
+                <button
+                  type="button"
+                  disabled={quizSaveLoading}
+                  onClick={() => setSelectedLessonForQuiz(null)}
+                  className="text-xs text-slate-400 hover:text-white px-3 py-2 cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={quizSaveLoading}
+                  className="bg-accent-violet text-white text-xs font-bold px-4 py-2 rounded-xl hover:scale-102 active:scale-98 cursor-pointer transition-all disabled:opacity-50"
+                >
+                  {quizSaveLoading ? 'Saving...' : 'Save Quiz'}
                 </button>
               </div>
             </form>

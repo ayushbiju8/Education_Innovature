@@ -6,7 +6,8 @@ import {
   BookOpen, User, DollarSign, Calendar, ChevronDown, ChevronRight, 
   Video, FileText, CheckCircle, ArrowLeft, PlayCircle, Loader, 
   Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX, Maximize, 
-  Sparkles, Eye, Download, Image as ImageIcon, Star, Trash2, Award
+  Sparkles, Eye, Download, Image as ImageIcon, Star, Trash2, Award,
+  HelpCircle, XCircle
 } from 'lucide-react';
 import gsap from 'gsap';
 
@@ -59,6 +60,89 @@ const CourseDetails = () => {
   const [activeVideoTitle, setActiveVideoTitle] = useState('');
   const [textFileContents, setTextFileContents] = useState({});
   const [expandedImage, setExpandedImage] = useState(null);
+
+  // Quiz Player states
+  const [quizData, setQuizData] = useState(null);
+  const [quizAnswers, setQuizAnswers] = useState({}); // maps questionId -> selectedChoiceId
+  const [quizResult, setQuizResult] = useState(null);
+  const [quizActive, setQuizActive] = useState(false);
+  const [quizSubmitLoading, setQuizSubmitLoading] = useState(false);
+
+  // Load quiz details when selectedLesson changes
+  useEffect(() => {
+    if (selectedLesson) {
+      setQuizData(null);
+      setQuizAnswers({});
+      setQuizResult(null);
+      setQuizActive(false);
+      setQuizSubmitLoading(false);
+
+      if (selectedLesson.quiz) {
+        const loadLessonQuiz = async () => {
+          try {
+            const res = await client.get(`/lessons/${selectedLesson.id}/quiz/`);
+            setQuizData(res.data);
+          } catch (err) {
+            console.error("Error loading quiz questions:", err);
+          }
+        };
+        loadLessonQuiz();
+      }
+    }
+  }, [selectedLesson]);
+
+  const handleSelectQuizAnswer = (questionId, choiceId) => {
+    setQuizAnswers(prev => ({
+      ...prev,
+      [questionId]: choiceId
+    }));
+  };
+
+  const handleQuizSubmit = async (e) => {
+    e.preventDefault();
+    if (!quizData) return;
+
+    const questions = quizData.questions || [];
+    const unanswered = questions.filter(q => !quizAnswers[q.id]);
+    if (unanswered.length > 0) {
+      setError("Please answer all questions before submitting.");
+      return;
+    }
+
+    setQuizSubmitLoading(true);
+    setError('');
+    setSuccess('');
+
+    const formattedAnswers = Object.entries(quizAnswers).map(([qId, cId]) => ({
+      question_id: Number(qId),
+      choice_id: Number(cId)
+    }));
+
+    try {
+      const res = await client.post(`/lessons/${selectedLesson.id}/quiz/submit/`, {
+        answers: formattedAnswers
+      });
+      const result = res.data;
+      setQuizResult(result);
+      setQuizActive(false);
+
+      if (result.passed) {
+        setSuccess(`Congratulations! You passed with a score of ${result.score}% 🎉`);
+        setCompletedLessonIds(prev => {
+          if (prev.includes(selectedLesson.id)) return prev;
+          return [...prev, selectedLesson.id];
+        });
+        await fetchCourseDetails();
+      } else {
+        setError(`You scored ${result.score}%, which is below the passing mark of ${result.passing_score}%. Please try again!`);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.detail || 'Failed to submit quiz.');
+    } finally {
+      setQuizSubmitLoading(false);
+    }
+  };
 
   // Custom Video Player controls state
   const videoRef = useRef(null);
@@ -900,21 +984,196 @@ const CourseDetails = () => {
                   </p>
                 </div>
 
-                <button
-                  onClick={() => handleToggleLessonCompleted(selectedLesson.id)}
-                  disabled={completedLessonIds.includes(selectedLesson.id)}
-                  className={`text-[11px] font-bold uppercase tracking-widest px-3 py-2 rounded-xl border transition-all ${
+                {!selectedLesson.quiz ? (
+                  <button
+                    onClick={() => handleToggleLessonCompleted(selectedLesson.id)}
+                    disabled={completedLessonIds.includes(selectedLesson.id)}
+                    className={`text-[11px] font-bold uppercase tracking-widest px-3 py-2 rounded-xl border transition-all duration-200 ${
+                      completedLessonIds.includes(selectedLesson.id)
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 opacity-80 cursor-default'
+                        : 'bg-white/5 text-slate-300 border-white/5 hover:border-accent-blue hover:bg-white/10 active:scale-97'
+                    }`}
+                  >
+                    {completedLessonIds.includes(selectedLesson.id) ? '✓ Completed' : 'Mark Completed'}
+                  </button>
+                ) : (
+                  <div className={`text-[10px] font-bold uppercase tracking-widest px-3 py-2 rounded-xl border ${
                     completedLessonIds.includes(selectedLesson.id)
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 opacity-80 cursor-default'
-                      : 'bg-white/5 text-slate-300 border-white/5 hover:border-accent-blue hover:bg-white/10'
-                  }`}
-                >
-                  {completedLessonIds.includes(selectedLesson.id) ? '✓ Completed' : 'Mark Completed'}
-                </button>
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                  }`}>
+                    {completedLessonIds.includes(selectedLesson.id) ? '✓ Passed Quiz' : 'Quiz Required'}
+                  </div>
+                )}
               </div>
 
-              {/* VIDEO PLAYER COMPONENT (Custom Premium Controls) */}
-              {activeVideoUrl ? (
+              {/* QUIZ PLAYER COMPONENT / VIDEO PLAYER (Custom Premium Controls) */}
+              {selectedLesson.quiz && quizData ? (
+                <div className="bg-slate-900/30 border border-white/5 p-6 rounded-2xl space-y-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-4 border-b border-white/5">
+                    <div>
+                      <h4 className="text-md font-bold text-white flex items-center gap-1.5">
+                        <Award className="h-5 w-5 text-accent-violet" />
+                        {quizData.title}
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-1">{quizData.description || 'Test your knowledge to pass this lesson.'}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-xs font-bold text-slate-400">Passing Mark: </span>
+                      <span className="text-sm font-extrabold text-accent-violet">{quizData.passing_score}%</span>
+                    </div>
+                  </div>
+
+                  {!quizActive && !quizResult && (
+                    <div className="text-center py-8 space-y-4">
+                      <HelpCircle className="h-16 w-16 text-slate-600 mx-auto animate-pulse" />
+                      <p className="text-sm text-slate-300 max-w-md mx-auto">
+                        This lesson includes a knowledge assessment quiz with <span className="font-bold text-white">{quizData.questions?.length || 0} questions</span>.
+                        You must achieve a score of at least <span className="font-bold text-white">{quizData.passing_score}%</span> to pass and mark this lesson completed.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuizActive(true);
+                          setQuizAnswers({});
+                          setQuizResult(null);
+                        }}
+                        className="bg-gradient-to-r from-accent-violet to-accent-indigo hover:from-violet-600 hover:to-indigo-600 text-white font-bold text-xs py-3 px-6 rounded-xl shadow-md transition-all active:scale-97 cursor-pointer"
+                      >
+                        Start Assessment
+                      </button>
+                    </div>
+                  )}
+
+                  {quizActive && (
+                    <form onSubmit={handleQuizSubmit} className="space-y-6">
+                      <div className="space-y-6">
+                        {quizData.questions?.map((q, qIdx) => (
+                          <div key={q.id} className="p-5 rounded-2xl bg-slate-950/40 border border-white/5 space-y-3">
+                            <h5 className="text-xs font-bold text-slate-200">
+                              Question {qIdx + 1}: <span className="text-slate-300 font-medium">{q.text}</span>
+                            </h5>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-2">
+                              {q.choices?.map((c) => {
+                                const isSelected = quizAnswers[q.id] === c.id;
+                                return (
+                                  <button
+                                    key={c.id}
+                                    type="button"
+                                    onClick={() => handleSelectQuizAnswer(q.id, c.id)}
+                                    className={`flex items-center text-left p-3.5 rounded-xl border transition-all text-xs font-semibold cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-accent-violet/10 border-accent-violet text-white shadow-lg'
+                                        : 'bg-slate-900/50 border-white/5 text-slate-400 hover:text-slate-200 hover:border-white/10'
+                                    }`}
+                                  >
+                                    <span className={`w-4 h-4 rounded-full border flex items-center justify-center mr-2 shrink-0 transition-all ${
+                                      isSelected 
+                                        ? 'border-accent-violet bg-accent-violet text-white' 
+                                        : 'border-slate-600'
+                                    }`}>
+                                      {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                    </span>
+                                    {c.text}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {error && (
+                        <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-2xl text-xs font-semibold">
+                          {error}
+                        </div>
+                      )}
+
+                      <div className="flex justify-end pt-2">
+                        <button
+                          type="submit"
+                          disabled={quizSubmitLoading}
+                          className="bg-gradient-to-r from-accent-blue to-accent-indigo hover:from-blue-600 hover:to-indigo-600 text-white font-bold text-xs py-3 px-8 rounded-xl shadow-md transition-all active:scale-97 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                        >
+                          {quizSubmitLoading ? <div className="premium-spinner-sm"></div> : 'Submit Assessment'}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {quizResult && (
+                    <div className="p-6 rounded-2xl border bg-slate-950/20 text-center space-y-4 relative overflow-hidden">
+                      <div className={`p-4 rounded-2xl max-w-sm mx-auto flex flex-col items-center justify-center space-y-2 border ${
+                        quizResult.passed 
+                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+                          : 'bg-red-500/10 border-red-500/20 text-red-400'
+                      }`}>
+                        {quizResult.passed ? (
+                          <>
+                            <CheckCircle className="h-12 w-12 text-emerald-400 animate-bounce" />
+                            <h5 className="text-md font-bold uppercase tracking-widest">Assessment Passed!</h5>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-12 w-12 text-red-400 animate-pulse" />
+                            <h5 className="text-md font-bold uppercase tracking-widest">Assessment Failed</h5>
+                          </>
+                        )}
+                        <span className="text-3xl font-extrabold">{quizResult.score}%</span>
+                        <p className="text-xs text-slate-400 font-medium">
+                          You answered {quizResult.correct_count} of {quizResult.total_questions} questions correctly.
+                          (Required: {quizResult.passing_score}%)
+                        </p>
+                      </div>
+
+                      {/* Display Question Grading Details */}
+                      <div className="text-left space-y-3 pt-4 border-t border-white/5">
+                        <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Review Your Responses</h5>
+                        <div className="space-y-3">
+                          {quizData.questions?.map((q, qIdx) => {
+                            const grade = quizResult.graded_details?.find(g => g.question_id === q.id);
+                            const isCorrect = grade?.is_correct;
+                            const studentChoice = q.choices?.find(c => c.id === grade?.selected_choice_id);
+                            
+                            return (
+                              <div key={q.id} className="p-4 rounded-xl bg-slate-900/20 border border-white/5 text-xs space-y-2">
+                                <div className="flex justify-between items-start gap-3">
+                                  <span className="font-bold text-slate-300">Q{qIdx + 1}. {q.text}</span>
+                                  <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold shrink-0 ${
+                                    isCorrect ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+                                  }`}>
+                                    {isCorrect ? 'Correct' : 'Incorrect'}
+                                  </span>
+                                </div>
+                                <p className="text-slate-400">
+                                  Your Choice: <span className={isCorrect ? 'text-emerald-400 font-semibold' : 'text-red-400 font-semibold'}>
+                                    {studentChoice?.text || 'Unanswered'}
+                                  </span>
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 flex justify-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQuizActive(true);
+                            setQuizAnswers({});
+                            setQuizResult(null);
+                          }}
+                          className="bg-white/5 border border-white/10 text-slate-300 hover:text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-97 cursor-pointer"
+                        >
+                          {quizResult.passed ? 'Retake Quiz' : 'Try Again'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : activeVideoUrl ? (
                 <div className="space-y-3">
                   <p className="text-xs text-slate-400 font-semibold flex items-center gap-1.5">
                     <Sparkles className="h-3.5 w-3.5 text-accent-violet" />
@@ -928,7 +1187,7 @@ const CourseDetails = () => {
                       src={activeVideoUrl}
                       onTimeUpdate={handleTimeUpdate}
                       onLoadedMetadata={handleLoadedMetadata}
-                      className="w-full aspect-video object-contain"
+                      className="w-full aspect-video object-contain cursor-pointer"
                       onClick={handlePlayPause}
                     />
 
