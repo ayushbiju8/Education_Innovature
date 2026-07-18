@@ -32,7 +32,8 @@ def _get_authorized_room(user, course_id):
 
 class CourseChatHistoryAPIView(APIView):
     """GET all questions (with answers) for a course chat room.
-    Supports ?since=<iso8601> for incremental polling."""
+    Supports ?since=<iso8601> for incremental polling.
+    Returns questions that are new OR have new answers since the given time."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request, course_id):
@@ -46,9 +47,13 @@ class CourseChatHistoryAPIView(APIView):
         if since:
             try:
                 from django.utils.dateparse import parse_datetime
+                from django.db.models import Q
                 since_dt = parse_datetime(since)
                 if since_dt:
-                    qs = qs.filter(created_at__gt=since_dt)
+                    # Return questions that are new themselves OR have new answers
+                    qs = qs.filter(
+                        Q(created_at__gt=since_dt) | Q(answers__created_at__gt=since_dt)
+                    ).distinct()
             except Exception:
                 pass
 
