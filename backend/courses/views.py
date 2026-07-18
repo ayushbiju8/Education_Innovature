@@ -5,10 +5,11 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
-from .models import Category, Course, Tag, Module, Lesson, Attachment
+from .models import Category, Course, Tag, Module, Lesson, Attachment, Quiz, QuizQuestion, QuizChoice, QuizAttempt
 from .serializers import (
     CategorySerializer, CourseSerializer, CourseListSerializer, 
-    TagSerializer, ModuleSerializer, LessonSerializer, AttachmentSerializer
+    TagSerializer, ModuleSerializer, LessonSerializer, AttachmentSerializer,
+    QuizSerializer, QuizAttemptSerializer
 )
 from .permissions import IsAdminOrReadOnly, IsMentorOrAdmin, IsCourseOwnerOrAdmin
 
@@ -105,6 +106,152 @@ class LessonViewSet(viewsets.ModelViewSet):
                 serializer.save(lesson=lesson)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['get'], url_path='quiz')
+    def get_quiz(self, request, pk=None):
+        lesson = self.get_object()
+        try:
+            quiz = lesson.quiz
+            serializer = QuizSerializer(quiz, context={'request': request})
+            return Response(serializer.data)
+        except Exception:
+            return Response({"detail": "No quiz exists for this lesson."}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['post'], url_path='quiz/manage')
+    def manage_quiz(self, request, pk=None):
+        lesson = self.get_object()
+        user = request.user
+        course = lesson.module.course
+        if not (user.is_superuser or user.is_staff or getattr(user, 'role', '') == 'admin' or course.mentor == user):
+            return Response({"detail": "You do not have permission to manage this quiz."}, status=status.HTTP_403_FORBIDDEN)
+
+        title = request.data.get('title', 'Quiz').strip()
+        description = request.data.get('description', '').strip()
+        passing_score = int(request.data.get('passing_score', 60))
+        questions_data = request.data.get('questions', [])
+
+        from django.db import transaction
+        try:
+            with transaction.atomic():
+                quiz, _ = Quiz.objects.get_or_create(lesson=lesson, defaults={'title': title, 'passing_score': passing_score})
+                quiz.title = title
+                quiz.description = description
+                quiz.passing_score = passing_score
+                quiz.save()
+
+                # Clear existing questions and choices (full rebuild)
+                quiz.questions.all().delete()
+
+                for idx, q_data in enumerate(questions_data):
+                    q_text = q_data.get('text', '').strip()
+                    if not q_text:
+                        continue
+                    question = QuizQuestion.objects.create(
+                        quiz=quiz,
+                        text=q_text,
+                        order=q_data.get('order', idx)
+                    )
+                    choices_data = q_data.get('choices', [])
+                    for c_data in choices_data:
+                        c_text = c_data.get('text', '').strip()
+                        if not c_text:
+                            continue
+                        QuizChoice.objects.create(
+                            question=question,
+                            text=c_text,
+                            is_correct=bool(c_data.get('is_correct', False))
+                        )
+                
+                serializer = QuizSerializer(quiz, context={'request': request})
+                return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"detail": f"Failed to save quiz: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='quiz/submit')
+    def submit_quiz(self, request, pk=None):
+        lesson = self.get_object()
+        try:
+            quiz = lesson.quiz
+        except Exception:
+            return Response({"detail": "This lesson does not have a quiz."}, status=status.HTTP_404_NOT_FOUND)
+
+        from enrollments.models import Enrollment, LessonProgress
+        from certificates.models import Certificate
+        from django.utils import timezone
+        import uuid
+
+        try:
+            enrollment = Enrollment.objects.get(student=request.user, course=lesson.module.course)
+        except Enrollment.DoesNotExist:
+            return Response({"detail": "You must be enrolled in this course to take the quiz."}, status=status.HTTP_403_FORBIDDEN)
+
+        answers_data = request.data.get('answers', [])
+        questions = quiz.questions.all()
+        total_questions = questions.count()
+        if total_questions == 0:
+            return Response({"detail": "This quiz has no questions."}, status=status.HTTP_400_BAD_REQUEST)
+
+        correct_count = 0
+        graded_details = []
+
+        for q in questions:
+            correct_choice = q.choices.filter(is_correct=True).first()
+            student_choice_id = None
+            for ans in answers_data:
+                if int(ans.get('question_id')) == q.id:
+                    student_choice_id = int(ans.get('choice_id'))
+                    break
+            
+            is_correct = (correct_choice is not None and student_choice_id == correct_choice.id)
+            if is_correct:
+                correct_count += 1
+                
+            graded_details.append({
+                "question_id": q.id,
+                "selected_choice_id": student_choice_id,
+                "correct_choice_id": correct_choice.id if correct_choice else None,
+                "is_correct": is_correct
+            })
+
+        score = (correct_count / total_questions) * 100
+        passed = score >= quiz.passing_score
+
+        attempt = QuizAttempt.objects.create(
+            student=request.user,
+            quiz=quiz,
+            score=score,
+            passed=passed
+        )
+
+        if passed:
+            progress_rec, created = LessonProgress.objects.get_or_create(
+                enrollment=enrollment,
+                lesson=lesson,
+                defaults={'is_completed': True, 'completed_at': timezone.now()}
+            )
+            if not created and not progress_rec.is_completed:
+                progress_rec.is_completed = True
+                progress_rec.completed_at = timezone.now()
+                progress_rec.save()
+
+            total_lessons = Lesson.objects.filter(module__course=lesson.module.course).count()
+            completed_lessons = LessonProgress.objects.filter(enrollment=enrollment, is_completed=True).count()
+            if total_lessons > 0 and completed_lessons == total_lessons:
+                if not hasattr(enrollment, 'certificate'):
+                    Certificate.objects.create(
+                        enrollment=enrollment,
+                        certificate_code=str(uuid.uuid4())
+                    )
+
+        return Response({
+            "attempt_id": attempt.id,
+            "score": score,
+            "passed": passed,
+            "passing_score": quiz.passing_score,
+            "correct_count": correct_count,
+            "total_questions": total_questions,
+            "graded_details": graded_details
+        }, status=status.HTTP_200_OK)
 
 class AttachmentViewSet(viewsets.ModelViewSet):
     queryset = Attachment.objects.all()

@@ -1,6 +1,6 @@
 import os
 from rest_framework import serializers
-from .models import Category, Course, Tag, Module, Lesson, Attachment
+from .models import Category, Course, Tag, Module, Lesson, Attachment, Quiz, QuizQuestion, QuizChoice, QuizAttempt
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -30,13 +30,60 @@ class AttachmentSerializer(serializers.ModelSerializer):
             
         return value
 
+class QuizChoiceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = QuizChoice
+        fields = ['id', 'text', 'is_correct']
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        # Security: Strip is_correct if user is a student
+        request = self.context.get('request')
+        if request and not (request.user.is_superuser or getattr(request.user, 'role', '') in ['admin', 'mentor']):
+            rep.pop('is_correct', None)
+        return rep
+
+class QuizQuestionSerializer(serializers.ModelSerializer):
+    choices = QuizChoiceSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = QuizQuestion
+        fields = ['id', 'text', 'order', 'choices']
+
+class QuizSerializer(serializers.ModelSerializer):
+    questions = QuizQuestionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Quiz
+        fields = ['id', 'lesson', 'title', 'description', 'passing_score', 'questions']
+
+class QuizAttemptSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source='student.username', read_only=True)
+
+    class Meta:
+        model = QuizAttempt
+        fields = ['id', 'student', 'student_name', 'quiz', 'score', 'passed', 'attempted_at']
+
 class LessonSerializer(serializers.ModelSerializer):
     attachments = AttachmentSerializer(many=True, read_only=True)
+    quiz = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Lesson
         fields = '__all__'
         read_only_fields = ('module',)
+
+    def get_quiz(self, obj):
+        try:
+            q = obj.quiz
+            return {
+                'id': q.id,
+                'title': q.title,
+                'passing_score': q.passing_score,
+                'question_count': q.questions.count()
+            }
+        except Exception:
+            return None
 
     def validate_content(self, value):
         if not value or not value.strip():
