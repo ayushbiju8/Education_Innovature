@@ -1,5 +1,14 @@
 from django.db import models
 from django.conf import settings
+import os
+import uuid
+
+def attachment_upload_path(instance, filename):
+    name, ext = os.path.splitext(filename)
+    # Truncate base name to 50 chars, replace spaces with underscores
+    short_name = name[:50].replace(' ', '_')
+    unique_suffix = uuid.uuid4().hex[:8]
+    return f"attachments/{short_name}_{unique_suffix}{ext}"
 
 class Category(models.Model):
     name = models.CharField(max_length=100)
@@ -61,7 +70,7 @@ class Lesson(models.Model):
 class Attachment(models.Model):
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='attachments')
     title = models.CharField(max_length=255)
-    file = models.FileField(upload_to='attachments/')
+    file = models.FileField(upload_to=attachment_upload_path, max_length=500)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

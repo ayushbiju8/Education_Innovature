@@ -38,6 +38,44 @@ const EditCourse = () => {
   const [attachmentFile, setAttachmentFile] = useState(null);
   const fileInputRef = useRef(null);
 
+  // Lesson creation attachment states
+  const [lessonAttachmentTitle, setLessonAttachmentTitle] = useState('');
+  const [lessonAttachmentFile, setLessonAttachmentFile] = useState(null);
+
+  // Upload status tracking
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [previewUrl, setPreviewUrl] = useState('');
+
+  // Handle local file selection and generates preview
+  const handleFileChange = (file, isForLessonCreation = false) => {
+    if (!file) {
+      if (isForLessonCreation) {
+        setLessonAttachmentFile(null);
+        setPreviewUrl('');
+      } else {
+        setAttachmentFile(null);
+        setPreviewUrl('');
+      }
+      return;
+    }
+    
+    if (isForLessonCreation) {
+      setLessonAttachmentFile(file);
+      setLessonAttachmentTitle(file.name);
+    } else {
+      setAttachmentFile(file);
+      setAttachmentTitle(file.name);
+    }
+
+    if (file.type.startsWith('image/')) {
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+    } else {
+      setPreviewUrl('');
+    }
+  };
+
   // Messaging
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -135,7 +173,7 @@ const EditCourse = () => {
     const nextOrder = (targetModule?.lessons?.length || 0) + 1;
 
     try {
-      await client.post(`/modules/${moduleId}/lessons/`, {
+      const lessonRes = await client.post(`/modules/${moduleId}/lessons/`, {
         title: lessonTitle,
         content: lessonContent.trim() || 'Lesson reading note content.',
         video_url: lessonVideoUrl,
@@ -143,16 +181,45 @@ const EditCourse = () => {
         order: nextOrder,
       });
 
+      const newLesson = lessonRes.data;
+
+      // Handle optional attachment upload immediately after lesson is created
+      if (lessonAttachmentFile && lessonAttachmentTitle.trim()) {
+        setIsUploading(true);
+        setUploadProgress(0);
+        
+        const formData = new FormData();
+        formData.append('title', lessonAttachmentTitle);
+        formData.append('file', lessonAttachmentFile);
+
+        await client.post(`/lessons/${newLesson.id}/attachments/`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          onUploadProgress: (progressEvent) => {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(percentCompleted);
+          }
+        });
+      }
+
       setLessonTitle('');
       setLessonContent('');
       setLessonVideoUrl('');
       setLessonDuration('');
+      setLessonAttachmentTitle('');
+      setLessonAttachmentFile(null);
+      setPreviewUrl('');
+      setIsUploading(false);
+      setUploadProgress(0);
       setShowAddLesson((prev) => ({ ...prev, [moduleId]: false }));
       
       await fetchCourseData();
     } catch (err) {
       console.error(err);
-      setError('Failed to add lesson.');
+      setIsUploading(false);
+      setUploadProgress(0);
+      setError(err.response?.data?.file?.[0] || err.response?.data?.detail || 'Failed to add lesson or upload attachment.');
     }
   };
 
@@ -160,6 +227,8 @@ const EditCourse = () => {
     e.preventDefault();
     if (!attachmentFile || !attachmentTitle) return;
     setError('');
+    setIsUploading(true);
+    setUploadProgress(0);
 
     const formData = new FormData();
     formData.append('title', attachmentTitle);
@@ -170,16 +239,25 @@ const EditCourse = () => {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percentCompleted);
+        }
       });
 
       setAttachmentTitle('');
       setAttachmentFile(null);
+      setPreviewUrl('');
+      setIsUploading(false);
+      setUploadProgress(0);
       setSelectedLessonForFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       
       await fetchCourseData();
     } catch (err) {
       console.error(err);
+      setIsUploading(false);
+      setUploadProgress(0);
       setError(err.response?.data?.file?.[0] || err.response?.data?.detail || 'Failed to upload attachment.');
     }
   };
@@ -426,19 +504,81 @@ const EditCourse = () => {
                               className="w-full bg-slate-950 border border-white/5 rounded-lg px-3 py-1.5 text-xs text-white resize-none"
                             />
 
-                            <div className="flex justify-end gap-2 text-xs">
+                            {/* Lesson optional attachment uploads inline */}
+                            <div className="border-t border-white/5 pt-3 space-y-3">
+                              <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest">Lesson Attachments (Optional)</p>
+                              
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-[8px] text-slate-500 mb-1.5 uppercase font-bold tracking-widest">
+                                    Select File
+                                  </label>
+                                  <input
+                                    type="file"
+                                    onChange={(e) => handleFileChange(e.target.files[0], true)}
+                                    className="w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-accent-violet/20 file:text-accent-violet hover:file:bg-accent-violet/30 cursor-pointer transition-all"
+                                  />
+                                </div>
+
+                                {lessonAttachmentFile && (
+                                  <div>
+                                    <label className="block text-[8px] text-slate-500 mb-1.5 uppercase font-bold tracking-widest">
+                                      Attachment Title
+                                    </label>
+                                    <input
+                                      type="text"
+                                      required
+                                      placeholder="e.g. Lecture Slides PDF"
+                                      value={lessonAttachmentTitle}
+                                      onChange={(e) => setLessonAttachmentTitle(e.target.value)}
+                                      className="w-full bg-slate-950 border border-white/5 rounded-lg px-2.5 py-1 text-xs text-white"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+
+                              {previewUrl && lessonAttachmentFile && (
+                                <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-white/10 mt-2">
+                                  <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                                </div>
+                              )}
+
+                              {isUploading && lessonAttachmentFile && (
+                                <div className="space-y-1.5 mt-2">
+                                  <div className="flex justify-between text-[10px] text-slate-400 font-medium">
+                                    <span>Uploading attachment...</span>
+                                    <span>{uploadProgress}%</span>
+                                  </div>
+                                  <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+                                    <div 
+                                      className="bg-accent-violet h-full transition-all duration-300" 
+                                      style={{ width: `${uploadProgress}%` }}
+                                    ></div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex justify-end gap-2 text-xs pt-2">
                               <button
                                 type="button"
-                                onClick={() => setShowAddLesson((prev) => ({ ...prev, [mod.id]: false }))}
-                                className="text-slate-400 px-3 py-1.5"
+                                disabled={isUploading}
+                                onClick={() => {
+                                  setLessonAttachmentFile(null);
+                                  setLessonAttachmentTitle('');
+                                  setPreviewUrl('');
+                                  setShowAddLesson((prev) => ({ ...prev, [mod.id]: false }));
+                                }}
+                                className="text-slate-400 px-3 py-1.5 cursor-pointer hover:text-white transition-colors disabled:opacity-50"
                               >
                                 Cancel
                               </button>
                               <button
                                 type="submit"
-                                className="bg-accent-blue text-white font-bold px-3 py-1.5 rounded-lg"
+                                disabled={isUploading}
+                                className="bg-accent-blue text-white font-bold px-3 py-1.5 rounded-lg hover:scale-102 active:scale-98 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                               >
-                                Add Lesson
+                                {isUploading ? 'Uploading...' : 'Add Lesson'}
                               </button>
                             </div>
                           </form>
@@ -503,44 +643,74 @@ const EditCourse = () => {
             <form onSubmit={handleUploadAttachment} className="space-y-4">
               <div>
                 <label className="block text-xs text-slate-400 mb-1.5 font-bold uppercase tracking-widest">
-                  Attachment Title
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Lecture Slides PDF"
-                  value={attachmentTitle}
-                  onChange={(e) => setAttachmentTitle(e.target.value)}
-                  className="w-full bg-slate-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-slate-400 mb-1.5 font-bold uppercase tracking-widest">
                   Choose File
                 </label>
                 <input
                   type="file"
                   required
                   ref={fileInputRef}
-                  onChange={(e) => setAttachmentFile(e.target.files[0])}
-                  className="w-full text-xs text-slate-300"
+                  onChange={(e) => handleFileChange(e.target.files[0], false)}
+                  className="w-full text-xs text-slate-300 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-accent-violet/20 file:text-accent-violet hover:file:bg-accent-violet/30 cursor-pointer transition-all"
                 />
               </div>
+
+              {attachmentFile && (
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5 font-bold uppercase tracking-widest">
+                    Attachment Title
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Lecture Slides PDF"
+                    value={attachmentTitle}
+                    onChange={(e) => setAttachmentTitle(e.target.value)}
+                    className="w-full bg-slate-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white"
+                  />
+                </div>
+              )}
+
+              {previewUrl && attachmentFile && (
+                <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-white/10 mt-2">
+                  <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                </div>
+              )}
+
+              {isUploading && attachmentFile && (
+                <div className="space-y-1.5 mt-2">
+                  <div className="flex justify-between text-[10px] text-slate-400 font-medium">
+                    <span>Uploading attachment...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className="bg-accent-violet h-full transition-all duration-300" 
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setSelectedLessonForFile(null)}
-                  className="text-xs text-slate-400 hover:text-white px-3 py-2"
+                  disabled={isUploading}
+                  onClick={() => {
+                    setAttachmentTitle('');
+                    setAttachmentFile(null);
+                    setPreviewUrl('');
+                    setSelectedLessonForFile(null);
+                  }}
+                  className="text-xs text-slate-400 hover:text-white px-3 py-2 cursor-pointer transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-accent-violet text-white text-xs font-bold px-4 py-2 rounded-xl"
+                  disabled={isUploading}
+                  className="bg-accent-violet text-white text-xs font-bold px-4 py-2 rounded-xl hover:scale-102 active:scale-98 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Upload File
+                  {isUploading ? 'Uploading...' : 'Upload File'}
                 </button>
               </div>
             </form>
