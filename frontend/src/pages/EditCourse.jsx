@@ -510,14 +510,16 @@ const EditCourse = () => {
                               
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                  <label className="block text-[8px] text-slate-500 mb-1.5 uppercase font-bold tracking-widest">
-                                    Select File
+                                  <label className="block cursor-pointer">
+                                    <span className="block text-[8px] text-slate-500 mb-1.5 uppercase font-bold tracking-widest hover:text-white transition-colors">
+                                      Select File
+                                    </span>
+                                    <input
+                                      type="file"
+                                      onChange={(e) => handleFileChange(e.target.files[0], true)}
+                                      className="w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-accent-violet/20 file:text-accent-violet hover:file:bg-accent-violet/30 cursor-pointer transition-all"
+                                    />
                                   </label>
-                                  <input
-                                    type="file"
-                                    onChange={(e) => handleFileChange(e.target.files[0], true)}
-                                    className="w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-accent-violet/20 file:text-accent-violet hover:file:bg-accent-violet/30 cursor-pointer transition-all"
-                                  />
                                 </div>
 
                                 {lessonAttachmentFile && (
@@ -642,16 +644,18 @@ const EditCourse = () => {
             <h3 className="text-md font-bold text-white mb-4">Upload Lesson Attachment</h3>
             <form onSubmit={handleUploadAttachment} className="space-y-4">
               <div>
-                <label className="block text-xs text-slate-400 mb-1.5 font-bold uppercase tracking-widest">
-                  Choose File
+                <label className="block cursor-pointer">
+                  <span className="block text-xs text-slate-400 mb-1.5 font-bold uppercase tracking-widest hover:text-white transition-colors">
+                    Choose File
+                  </span>
+                  <input
+                    type="file"
+                    required
+                    ref={fileInputRef}
+                    onChange={(e) => handleFileChange(e.target.files[0], false)}
+                    className="w-full text-xs text-slate-300 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-accent-violet/20 file:text-accent-violet hover:file:bg-accent-violet/30 cursor-pointer transition-all"
+                  />
                 </label>
-                <input
-                  type="file"
-                  required
-                  ref={fileInputRef}
-                  onChange={(e) => handleFileChange(e.target.files[0], false)}
-                  className="w-full text-xs text-slate-300 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-accent-violet/20 file:text-accent-violet hover:file:bg-accent-violet/30 cursor-pointer transition-all"
-                />
               </div>
 
               {attachmentFile && (
