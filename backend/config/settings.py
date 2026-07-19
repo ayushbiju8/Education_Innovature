@@ -321,4 +321,17 @@ LOGGING = {
 # Elasticsearch configuration
 ELASTICSEARCH_URL = os.getenv('ELASTICSEARCH_URL', None)
 
-
+# ---------------------------------------------------------------------------
+# Email Configuration — Gmail SMTP via App Password
+# ---------------------------------------------------------------------------
+EMAIL_BACKEND = os.getenv(
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.smtp.EmailBackend'
+)
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.getenv('EMAIL_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_PASS', '')
+DEFAULT_FROM_EMAIL = f"Innovature LMS <{EMAIL_HOST_USER}>" if EMAIL_HOST_USER else 'Innovature LMS <noreply@innovature.com>'
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
