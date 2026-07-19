@@ -174,14 +174,29 @@ class SearchBackend:
         if is_postgres:
             try:
                 from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank
+                from django.db.models.functions import Coalesce
                 
+                # Check for partial substring matches as a fallback (essential for partial queries like 'prod')
+                q_partial = Q(title__icontains=query_str) | Q(description__icontains=query_str)
+                if deep_search:
+                    q_partial |= Q(modules__lessons__title__icontains=query_str) | Q(modules__lessons__content__icontains=query_str)
+                
+                # Setup PostgreSQL full-text search vector
                 vector = SearchVector('title', weight='A') + SearchVector('description', weight='B')
                 if deep_search:
                     vector += SearchVector('modules__lessons__title', weight='C') + SearchVector('modules__lessons__content', weight='C')
                 
-                search_query = SearchQuery(query_str)
-                qs = qs.annotate(rank=SearchRank(vector, search_query)).filter(rank__gt=0.0).order_by('-rank')
-                return qs.distinct()
+                # Build raw prefix query to allow partial-word full-text queries (e.g. "Django web" -> "Django:* & web:*")
+                words = [w for w in query_str.strip().split() if w]
+                prefix_query_str = " & ".join(f"{w}:*" for w in words)
+                search_query = SearchQuery(prefix_query_str, search_type='raw')
+                
+                # Combine both FTS matching and substring matches
+                qs_fts = qs.annotate(rank=SearchRank(vector, search_query)).filter(Q(rank__gt=0.0) | q_partial)
+                
+                # Order by match rank (use Coalesce to treat unmatched items as rank 0.0)
+                qs_fts = qs_fts.annotate(clean_rank=Coalesce('rank', 0.0)).order_by('-clean_rank')
+                return qs_fts.distinct()
             except Exception as e:
                 logger.error(f"PostgreSQL Full-Text search failed: {e}. Falling back to basic search.")
                 # fall through to standard ORM filter
