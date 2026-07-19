@@ -16,6 +16,9 @@ const Home = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
   const [selectedOrdering, setSelectedOrdering] = useState('-created_at'); // default: newest
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [deepSearch, setDeepSearch] = useState(false);
 
   const gridRef = useRef(null);
   const heroRef = useRef(null);
@@ -37,7 +40,7 @@ const Home = () => {
     fetchMetadata();
   }, []);
 
-  // Fetch courses dynamically based on filters/ordering (Backend-driven)
+  // Fetch courses dynamically based on filters/ordering/tag/prices (Backend-driven)
   useEffect(() => {
     const fetchCourses = async () => {
       setLoading(true);
@@ -47,8 +50,12 @@ const Home = () => {
         if (search.trim()) params.search = search;
         if (selectedCategory) params.category = selectedCategory;
         if (selectedOrdering) params.ordering = selectedOrdering;
+        if (selectedTag) params.tag = selectedTag;
+        if (minPrice) params.min_price = minPrice;
+        if (maxPrice) params.max_price = maxPrice;
+        if (deepSearch) params.deep_search = 'true';
         
-        // Fetch from backend CourseViewSet using django-filter query parameters
+        // Fetch from backend CourseViewSet using advanced search/filter query parameters
         const res = await client.get('/courses/', { params });
         setCourses(res.data);
       } catch (err) {
@@ -59,13 +66,13 @@ const Home = () => {
       }
     };
     
-    // Simple debounce/delay for search inputs
+    // Simple debounce/delay for search and price inputs
     const delayDebounce = setTimeout(() => {
       fetchCourses();
     }, 300);
 
     return () => clearTimeout(delayDebounce);
-  }, [search, selectedCategory, selectedOrdering]);
+  }, [search, selectedCategory, selectedOrdering, selectedTag, minPrice, maxPrice, deepSearch]);
 
   // Animate elements once loading finishes and courses display
   useEffect(() => {
@@ -88,13 +95,8 @@ const Home = () => {
     }
   }, [loading, courses]);
 
-  // Filter tags client side since tag IDs are processed on the frontend
-  const filteredCourses = courses.filter((course) => {
-    if (selectedTag) {
-      return course.tags?.includes(Number(selectedTag));
-    }
-    return true;
-  });
+  // Backend already handles tag filtering, tags are queried directly server-side
+  const filteredCourses = courses;
 
   return (
     <div className="min-h-screen bg-darkBg text-white px-6 py-10 max-w-7xl mx-auto w-full">
@@ -120,7 +122,7 @@ const Home = () => {
         </p>
 
         {/* Search & Filters Controls */}
-        <div className="glass p-4 rounded-2xl border border-white/5 shadow-xl flex flex-col gap-4 max-w-3xl mx-auto">
+        <div className="glass p-5 rounded-2xl border border-white/5 shadow-2xl flex flex-col gap-4 max-w-3xl mx-auto backdrop-blur-md">
           <div className="flex flex-col md:flex-row gap-3">
             {/* Search Input */}
             <div className="relative flex-1">
@@ -129,10 +131,24 @@ const Home = () => {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search for courses..."
+                placeholder={deepSearch ? "Deep search lessons and syllabus..." : "Search course titles..."}
                 className="w-full bg-slate-900 border border-white/5 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-accent-blue transition-colors text-white placeholder-slate-500"
               />
             </div>
+
+            {/* Deep Search Toggle */}
+            <button
+              type="button"
+              onClick={() => setDeepSearch(prev => !prev)}
+              className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all active:scale-97 cursor-pointer ${
+                deepSearch 
+                  ? 'bg-accent-indigo/25 border-accent-indigo text-accent-indigo shadow-[0_0_15px_rgba(99,102,241,0.15)]' 
+                  : 'bg-slate-950/40 border-white/5 text-slate-400 hover:text-white'
+              }`}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Deep Search</span>
+            </button>
 
             {/* Sort/Ordering Select */}
             <div className="relative min-w-[160px]">
@@ -150,41 +166,63 @@ const Home = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3 items-center pt-2 border-t border-white/5 text-xs text-slate-400">
-            <span className="flex items-center gap-1 font-semibold text-slate-300">
-              <Filter className="h-3.5 w-3.5" /> Filter:
-            </span>
+          <div className="flex flex-wrap gap-4 items-center pt-3 border-t border-white/5 text-xs text-slate-400">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="flex items-center gap-1 font-semibold text-slate-300">
+                <Filter className="h-3.5 w-3.5" /> Filter:
+              </span>
 
-            {/* Category Dropdown */}
-            <div className="relative">
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="bg-slate-900 border border-white/5 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-accent-blue transition-colors appearance-none pr-6 cursor-pointer"
-              >
-                <option value="">All Categories</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
+              {/* Category Dropdown */}
+              <div className="relative">
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="bg-slate-900 border border-white/5 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-accent-blue transition-colors appearance-none pr-6 cursor-pointer"
+                >
+                  <option value="">All Categories</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Tag Dropdown */}
+              <div className="relative">
+                <select
+                  value={selectedTag}
+                  onChange={(e) => setSelectedTag(e.target.value)}
+                  className="bg-slate-900 border border-white/5 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-accent-blue transition-colors appearance-none pr-6 cursor-pointer"
+                >
+                  <option value="">All Tags</option>
+                  {tags.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            {/* Tag Dropdown */}
-            <div className="relative">
-              <select
-                value={selectedTag}
-                onChange={(e) => setSelectedTag(e.target.value)}
-                className="bg-slate-900 border border-white/5 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-accent-blue transition-colors appearance-none pr-6 cursor-pointer"
-              >
-                <option value="">All Tags</option>
-                {tags.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
+            {/* Price range input filters */}
+            <div className="flex items-center gap-2 border-l border-white/5 pl-4">
+              <span className="font-semibold text-slate-300">Price:</span>
+              <input
+                type="number"
+                placeholder="Min"
+                value={minPrice}
+                onChange={(e) => setMinPrice(e.target.value)}
+                className="w-16 bg-slate-900 border border-white/5 rounded-lg px-2 py-1 text-xs text-slate-300 focus:outline-none focus:border-accent-blue placeholder-slate-600 transition-colors"
+              />
+              <span className="text-slate-600">—</span>
+              <input
+                type="number"
+                placeholder="Max"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+                className="w-16 bg-slate-900 border border-white/5 rounded-lg px-2 py-1 text-xs text-slate-300 focus:outline-none focus:border-accent-blue placeholder-slate-600 transition-colors"
+              />
             </div>
           </div>
         </div>

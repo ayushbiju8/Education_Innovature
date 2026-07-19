@@ -30,6 +30,33 @@ class CourseViewSet(viewsets.ModelViewSet):
     search_fields = ['title']
     ordering_fields = ['created_at', 'price']
 
+    def filter_queryset(self, queryset):
+        search_query = self.request.query_params.get('search', '')
+        tag_id = self.request.query_params.get('tag', None)
+        min_price = self.request.query_params.get('min_price', None)
+        max_price = self.request.query_params.get('max_price', None)
+        category_id = self.request.query_params.get('category', None)
+
+        if self.action == 'list' and (search_query or tag_id or min_price or max_price or category_id):
+            from .search import SearchBackend
+            deep_search = self.request.query_params.get('deep_search', 'false').lower() == 'true'
+
+            queryset = SearchBackend.search_courses(
+                queryset=queryset,
+                query_str=search_query,
+                deep_search=deep_search,
+                category_id=category_id,
+                tag_id=tag_id,
+                min_price=min_price,
+                max_price=max_price
+            )
+
+            ordering_filter = filters.OrderingFilter()
+            queryset = ordering_filter.filter_queryset(self.request, queryset, self)
+            return queryset
+
+        return super().filter_queryset(queryset)
+
     def get_queryset(self):
         user = self.request.user
         if not user.is_authenticated:
@@ -41,6 +68,7 @@ class CourseViewSet(viewsets.ModelViewSet):
             return Course.objects.filter(Q(is_published=True) | Q(mentor=user))
         
         return Course.objects.filter(is_published=True)
+
 
     def get_serializer_class(self):
         if self.action == 'list':

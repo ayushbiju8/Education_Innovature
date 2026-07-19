@@ -116,12 +116,8 @@ import dj_database_url
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME', 'innovature_db'),
-        'USER': os.getenv('DB_USER', 'postgres'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'postgres'),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '5432'),
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
     }
 }
 
@@ -131,6 +127,14 @@ if os.getenv('DATABASE_URL'):
         conn_max_age=int(os.getenv('CONN_MAX_AGE', 0)),
         ssl_require=os.getenv('DATABASE_SSL_REQUIRE', 'False') == 'True'
     )
+
+import sys
+if 'test' in sys.argv:
+    DATABASES['default'] = {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+    }
+
 
 # Custom User Model
 AUTH_USER_MODEL = 'accounts.User'
@@ -313,4 +317,8 @@ LOGGING = {
         },
     },
 }
+
+# Elasticsearch configuration
+ELASTICSEARCH_URL = os.getenv('ELASTICSEARCH_URL', None)
+
 
