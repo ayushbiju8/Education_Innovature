@@ -262,32 +262,34 @@ const Dashboard = () => {
           <p className="text-xs text-slate-500 italic">No course purchases recorded yet.</p>
         ) : (
           <div className="glass rounded-3xl border border-white/5 overflow-hidden shadow-lg">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-white/5 border-b border-white/5 text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                  <th className="px-6 py-4">Course Name</th>
-                  <th className="px-6 py-4">Transaction Ref</th>
-                  <th className="px-6 py-4">Price</th>
-                  <th className="px-6 py-4">Date</th>
-                  <th className="px-6 py-4">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5 text-slate-300">
-                {payments.map((payment) => (
-                  <tr key={payment.id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="px-6 py-4 font-semibold text-white">{payment.course_title}</td>
-                    <td className="px-6 py-4 font-mono text-slate-400">#{payment.id}</td>
-                    <td className="px-6 py-4 text-emerald-400 font-bold">${payment.amount} {payment.currency}</td>
-                    <td className="px-6 py-4">{new Date(payment.created_at).toLocaleDateString()}</td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                        {payment.status}
-                      </span>
-                    </td>
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left text-xs border-collapse min-w-[650px]">
+                <thead>
+                  <tr className="bg-white/5 border-b border-white/5 text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                    <th className="px-6 py-4">Course Name</th>
+                    <th className="px-6 py-4">Transaction Ref</th>
+                    <th className="px-6 py-4">Price</th>
+                    <th className="px-6 py-4">Date</th>
+                    <th className="px-6 py-4">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-slate-300">
+                  {payments.map((payment) => (
+                    <tr key={payment.id} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="px-6 py-4 font-semibold text-white">{payment.course_title}</td>
+                      <td className="px-6 py-4 font-mono text-slate-400">#{payment.id}</td>
+                      <td className="px-6 py-4 text-emerald-400 font-bold">${payment.amount} {payment.currency}</td>
+                      <td className="px-6 py-4">{new Date(payment.created_at).toLocaleDateString()}</td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          {payment.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

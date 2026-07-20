@@ -206,7 +206,7 @@ const Home = () => {
             </div>
 
             {/* Price range input filters */}
-            <div className="flex items-center gap-2 border-l border-white/5 pl-4">
+            <div className="flex items-center gap-2 border-t sm:border-t-0 sm:border-l border-white/5 pt-2.5 sm:pt-0 sm:pl-4">
               <span className="font-semibold text-slate-300">Price:</span>
               <input
                 type="number"

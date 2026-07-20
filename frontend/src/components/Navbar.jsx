@@ -5,7 +5,7 @@ import client from '../api/client';
 import { 
   BookOpen, User, PlusCircle, LogOut, Compass, FileText, Send, 
   Sparkles, LayoutDashboard, Settings, Mail, Phone, Info, Loader,
-  Bell, Check
+  Bell, Check, Menu, X
 } from 'lucide-react';
 
 const Navbar = () => {
@@ -17,6 +17,14 @@ const Navbar = () => {
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  
+  // Mobile Navigation toggle
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+
+  // Auto-close mobile menu on route changes
+  useEffect(() => {
+    setShowMobileMenu(false);
+  }, [location.pathname]);
 
   // Mentor Apply modal state
   const [showApplyModal, setShowApplyModal] = useState(false);
@@ -140,7 +148,7 @@ const Navbar = () => {
 
   return (
     <>
-      <nav className="glass sticky top-0 z-50 px-6 py-4 flex items-center justify-between border-b border-white/5 backdrop-blur-md">
+      <nav className="glass sticky top-0 z-50 px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between border-b border-white/5 backdrop-blur-md">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 text-white font-bold text-xl tracking-wider">
           <div className="bg-gradient-to-tr from-accent-blue to-accent-violet p-2 rounded-lg text-white shadow-md shadow-accent-indigo/20">
@@ -233,9 +241,9 @@ const Navbar = () => {
         </div>
 
         {/* User Info / Notifications / Auth CTA */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           {user ? (
-            <div className="flex items-center gap-4 relative">
+            <div className="flex items-center gap-2 sm:gap-4 relative">
               
               {/* Notifications Icon */}
               <div className="relative">
@@ -313,7 +321,7 @@ const Navbar = () => {
               {/* Avatar Clickable */}
               <button 
                 onClick={handleOpenProfileModal}
-                className="h-10 w-10 rounded-full border border-white/10 overflow-hidden bg-slate-800 flex items-center justify-center text-slate-300 font-bold uppercase hover:border-accent-blue/50 transition-colors"
+                className="hidden md:flex h-10 w-10 rounded-full border border-white/10 overflow-hidden bg-slate-800 items-center justify-center text-slate-300 font-bold uppercase hover:border-accent-blue/50 transition-colors"
                 title="View Profile Details"
               >
                 {user.avatar ? (
@@ -326,30 +334,157 @@ const Navbar = () => {
               {/* Logout */}
               <button
                 onClick={handleLogout}
-                className="p-2 rounded-lg bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-400 border border-white/5 hover:border-red-500/20 transition-all"
+                className="hidden md:flex p-2 rounded-lg bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-400 border border-white/5 hover:border-red-500/20 transition-all"
                 title="Log Out"
               >
                 <LogOut className="h-4 w-4" />
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <Link
                 to="/login"
-                className="text-slate-300 hover:text-white px-4 py-2 text-sm font-medium transition-colors"
+                className="text-slate-300 hover:text-white px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium transition-colors"
               >
                 Sign In
               </Link>
               <Link
                 to="/register"
-                className="bg-gradient-to-r from-accent-blue to-accent-indigo hover:from-blue-600 hover:to-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 transition-all border border-blue-400/20"
+                className="bg-gradient-to-r from-accent-blue to-accent-indigo hover:from-blue-600 hover:to-indigo-600 text-white text-xs sm:text-sm font-medium px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 transition-all border border-blue-400/20"
               >
                 Register
               </Link>
             </div>
           )}
+
+          {/* Mobile Menu Toggle Button */}
+          <button
+            onClick={() => setShowMobileMenu(!showMobileMenu)}
+            className="md:hidden p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/5 transition-all"
+            title="Toggle Menu"
+          >
+            {showMobileMenu ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
         </div>
       </nav>
+
+      {/* Mobile Navigation Drawer */}
+      {showMobileMenu && (
+        <div className="md:hidden glass border-b border-white/10 px-6 py-5 space-y-4 absolute top-[57px] left-0 right-0 shadow-2xl backdrop-blur-lg z-40">
+          <div className="flex flex-col gap-3 text-xs font-semibold">
+            <Link
+              to="/"
+              className={`flex items-center gap-2 p-2.5 rounded-xl transition-colors ${
+                isActive('/') ? 'text-accent-blue bg-accent-blue/10 border border-accent-blue/20' : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Compass className="h-4 w-4" />
+              Explore Courses
+            </Link>
+
+            {user && (
+              <Link
+                to="/dashboard"
+                className={`flex items-center gap-2 p-2.5 rounded-xl transition-colors ${
+                  isActive('/dashboard') ? 'text-accent-blue bg-accent-blue/10 border border-accent-blue/20' : 'text-slate-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <LayoutDashboard className="h-4 w-4" />
+                Dashboard
+              </Link>
+            )}
+
+            {user && user.role === 'mentor' && (
+              <>
+                <Link
+                  to="/mentor/courses"
+                  className={`flex items-center gap-2 p-2.5 rounded-xl transition-colors ${
+                    isActive('/mentor/courses') ? 'text-accent-violet bg-accent-violet/10 border border-accent-violet/20' : 'text-slate-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <FileText className="h-4 w-4" />
+                  My Courses
+                </Link>
+                <Link
+                  to="/courses/create"
+                  className={`flex items-center gap-2 p-2.5 rounded-xl transition-colors ${
+                    isActive('/courses/create') ? 'text-accent-emerald bg-accent-emerald/10 border border-accent-emerald/20' : 'text-slate-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  Create Course
+                </Link>
+              </>
+            )}
+
+            {user && user.role === 'admin' && (
+              <>
+                <Link
+                  to="/admin/mentor-applications"
+                  className={`flex items-center gap-2 p-2.5 rounded-xl transition-colors ${
+                    isActive('/admin/mentor-applications') ? 'text-accent-blue bg-accent-blue/10 border border-accent-blue/20' : 'text-slate-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Mentor Requests
+                </Link>
+                <Link
+                  to="/mentor/courses"
+                  className={`flex items-center gap-2 p-2.5 rounded-xl transition-colors ${
+                    isActive('/mentor/courses') ? 'text-accent-violet bg-accent-violet/10 border border-accent-violet/20' : 'text-slate-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <FileText className="h-4 w-4" />
+                  All Courses
+                </Link>
+              </>
+            )}
+
+            {user && user.role === 'student' && (
+              <button
+                onClick={() => {
+                  setShowMobileMenu(false);
+                  setShowApplyModal(true);
+                }}
+                className="flex items-center gap-2 p-2.5 w-full text-left rounded-xl text-slate-300 hover:text-accent-violet hover:bg-white/5 transition-colors font-medium"
+              >
+                <Sparkles className="h-4 w-4 text-accent-violet" />
+                Apply as Mentor
+              </button>
+            )}
+
+            {user && (
+              <>
+                <hr className="border-white/5 my-1" />
+                
+                {/* Profile settings shortcut */}
+                <button
+                  onClick={() => {
+                    setShowMobileMenu(false);
+                    handleOpenProfileModal();
+                  }}
+                  className="flex items-center gap-2 p-2.5 w-full text-left rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
+                >
+                  <User className="h-4 w-4 text-slate-400" />
+                  Profile Settings ({user.username})
+                </button>
+
+                {/* Logout shortcut */}
+                <button
+                  onClick={() => {
+                    setShowMobileMenu(false);
+                    handleLogout();
+                  }}
+                  className="flex items-center gap-2 p-2.5 w-full text-left rounded-xl text-red-400 hover:bg-red-500/10 transition-colors"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Log Out
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Profile Details & Editing Modal */}
       {showProfileModal && (
